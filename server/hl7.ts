@@ -1,20 +1,9 @@
 import net from 'net';
 import { getDb } from './db';
+import { MLLP_START, MLLP_END, parseHL7, generateACK } from './hl7-utils';
+import { startMindrayBS200Adapter } from './adapters/mindrayBS200Adapter';
 
-export const MLLP_START = Buffer.from([0x0b]);
-export const MLLP_END = Buffer.from([0x1c, 0x0d]);
-
-export function parseHL7(message: string) {
-  const segments = message.split('\r').filter(s => s.trim() !== '');
-  return segments.map(segment => segment.split('|'));
-}
-
-export function generateACK(originalMsh: string[], ackCode: string, errorMsg: string = '') {
-  const date = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-  const msh = `MSH|^~\\&|LIS|LIS|||${date}||ACK^R01|1|P|2.3.1||||0||ASCII|||`;
-  const msa = `MSA|${ackCode}|${originalMsh[9] || ''}|${errorMsg}|||0|`;
-  return `${msh}\r${msa}\r`;
-}
+export { MLLP_START, MLLP_END, parseHL7, generateACK };
 
 const activeAdapters = new Map<number, net.Server>();
 
@@ -23,9 +12,8 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
   stopAdapter(equipmentId);
 
   // Check for specific adapter
-  if (model.toLowerCase().includes('bs-200') || model.toLowerCase().includes('bs200')) {
+  if (model && (model.toLowerCase().includes('bs-200') || model.toLowerCase().includes('bs200'))) {
     console.log(`Starting Mindray BS-200 adapter for equipment ${equipmentId}`);
-    const { startMindrayBS200Adapter } = require('./adapters/mindrayBS200Adapter');
     const server = startMindrayBS200Adapter(port, equipmentId);
     activeAdapters.set(equipmentId, server);
     return server;

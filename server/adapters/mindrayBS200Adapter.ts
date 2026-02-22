@@ -1,6 +1,6 @@
 import net from 'net';
 import { getDb } from '../db';
-import { MLLP_START, MLLP_END, parseHL7 } from '../hl7';
+import { MLLP_START, MLLP_END, parseHL7 } from '../hl7-utils';
 
 export function startMindrayBS200Adapter(port: number, equipmentId: number) {
   const server = net.createServer((socket) => {
