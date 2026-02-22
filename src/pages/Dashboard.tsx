@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Activity, Server, FileText, AlertCircle } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import { Activity, Server, FileText, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Stats {
@@ -19,6 +19,7 @@ export default function Dashboard() {
   const [recentResults, setRecentResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchData = async () => {
@@ -44,7 +45,7 @@ export default function Dashboard() {
           recentLogs: logs.length,
         });
 
-        setRecentResults(results.slice(0, 5));
+        setRecentResults(results.slice(0, 20)); // Get more results to group effectively
       } catch (err: any) {
         setError(err.message || 'An error occurred');
       } finally {
@@ -56,6 +57,35 @@ export default function Dashboard() {
     const interval = setInterval(fetchData, 10000); // Refresh every 10s
     return () => clearInterval(interval);
   }, []);
+
+  const groupedResults = useMemo(() => {
+    const groups: { [key: string]: any[] } = {};
+    recentResults.forEach(r => {
+      const key = r.sample_barcode ? r.sample_barcode : `NO_BARCODE_${r.id}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(r);
+    });
+
+    return Object.entries(groups)
+      .sort(([, a], [, b]) => {
+        const timeA = new Date(a[0].result_time || a[0].created_at).getTime();
+        const timeB = new Date(b[0].result_time || b[0].created_at).getTime();
+        return timeB - timeA;
+      })
+      .slice(0, 5); // Show top 5 groups
+  }, [recentResults]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
 
   if (loading) {
     return <div className="flex justify-center items-center h-64">Loading...</div>;
@@ -103,40 +133,88 @@ export default function Dashboard() {
           <table className="min-w-full divide-y divide-zinc-200">
             <thead className="bg-zinc-50">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider w-10"></th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Time</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Equipment</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Barcode</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Patient</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Test</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Result</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Equipment</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Tests</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-zinc-200">
-              {recentResults.length === 0 ? (
+              {groupedResults.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-zinc-500">
+                  <td colSpan={6} className="px-6 py-4 text-center text-sm text-zinc-500">
                     No results found
                   </td>
                 </tr>
               ) : (
-                recentResults.map((result) => (
-                  <tr key={result.id} className="hover:bg-zinc-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
-                      {format(new Date(result.result_time || result.created_at), 'MMM d, HH:mm:ss')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900">
-                      {result.equipment_name || `Eq #${result.equipment_id}`}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
-                      {result.patient_name || 'Unknown'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
-                      {result.test_name || result.test_no}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 font-mono">
-                      {result.result_value} {result.result_unit}
-                    </td>
-                  </tr>
-                ))
+                groupedResults.map(([key, group]) => {
+                  const first = group[0];
+                  const isExpanded = expandedGroups.has(key);
+                  const hasBarcode = !!first.sample_barcode;
+
+                  return (
+                    <>
+                      <tr 
+                        key={key} 
+                        className={`hover:bg-zinc-50 transition-colors cursor-pointer ${isExpanded ? 'bg-zinc-50' : ''}`}
+                        onClick={() => toggleGroup(key)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
+                          {hasBarcode ? (
+                            isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />
+                          ) : null}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
+                          {format(new Date(first.result_time || first.created_at), 'MMM d, HH:mm:ss')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 font-mono font-medium">
+                          {first.sample_barcode || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-900">
+                          {first.patient_name || 'Unknown'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900">
+                          {first.equipment_name || `Eq #${first.equipment_id}`}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
+                          {group.length} result{group.length !== 1 ? 's' : ''}
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="bg-zinc-50/50">
+                          <td colSpan={6} className="px-6 py-4">
+                            <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">
+                              <table className="min-w-full divide-y divide-zinc-200">
+                                <thead className="bg-zinc-50">
+                                  <tr>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase">Test</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase">Result</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase">Unit</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase">Time</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-200">
+                                  {group.map((result: any) => (
+                                    <tr key={result.id}>
+                                      <td className="px-4 py-2 text-sm text-zinc-900">{result.test_name || result.test_no}</td>
+                                      <td className="px-4 py-2 text-sm font-semibold text-zinc-900">{result.result_value}</td>
+                                      <td className="px-4 py-2 text-sm text-zinc-500">{result.result_unit}</td>
+                                      <td className="px-4 py-2 text-sm text-zinc-500">
+                                        {format(new Date(result.result_time || result.created_at), 'HH:mm:ss')}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })
               )}
             </tbody>
           </table>
