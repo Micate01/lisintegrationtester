@@ -195,31 +195,37 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
         const age = order.age || ''; // e.g. "32^Y"
 
         // DSP Segment Construction
-        // Indices based on Doc 3.5.1 and 4.4 tables
-        // Index = Content Number - 1
-        // Content 5: Measurement pattern -> Index 4
-        // Content 6: Review -> Index 5
-        // Content 7: Review mode -> Index 6
-        // Content 8: Location -> Index 7
-        // Content 10: Patient ID -> Index 9
-        // Content 12: Name -> Index 11
-        // Content 14: DOB -> Index 13
-        // Content 15: Sex -> Index 14
-        // Content 38: Age (32^Y) -> Index 37 (See Doc 4.4.18 / Page 22/23 transition)
-        // Content 39: Applicant number (Sample ID) -> Index 38
+        // According to section 3.5.1 DSP: Display data segment
+        // Content 1: DSP
+        // Content 5: Measurement pattern (CBC+DIFF+SAA)
+        // Content 6: Whether to review (N)
+        // Content 7: Review mode (CBC+DIFF+RET+F-PLT+WPC+CRP+SAA)
+        // Content 8: Patient location information (^)
+        // Content 10: Patient ID (PID123)
+        // Content 12: Patient's name (lucy)
+        // Content 14: Date of birth (20221010122530)
+        // Content 15: Sex (W)
+        // Content 38: Age (32^Y)
+        // Content 39: Applicant number (T00014)
 
         const dspFields = new Array(40).fill('');
         dspFields[0] = 'DSP';
-        dspFields[4] = testMode;
-        dspFields[5] = 'N';
-        dspFields[6] = testMode;
-        dspFields[7] = '^';
-        dspFields[9] = pid;
-        dspFields[11] = name;
-        dspFields[13] = dob;
-        dspFields[14] = sex;
-        dspFields[37] = age;
-        dspFields[38] = sampleId;
+        dspFields[1] = ''; // IDDSP
+        dspFields[2] = ''; // Number of test items
+        dspFields[3] = ''; // Test information sheet
+        dspFields[4] = testMode; // Content 5
+        dspFields[5] = 'N'; // Content 6
+        dspFields[6] = testMode; // Content 7
+        dspFields[7] = '^'; // Content 8
+        dspFields[8] = ''; // Content 9
+        dspFields[9] = pid; // Content 10
+        dspFields[10] = ''; // Content 11
+        dspFields[11] = name; // Content 12
+        dspFields[12] = ''; // Content 13
+        dspFields[13] = dob; // Content 14
+        dspFields[14] = sex; // Content 15
+        dspFields[37] = age; // Content 38
+        dspFields[38] = sampleId; // Content 39
 
         dspSegments = dspFields.join('|');
         
