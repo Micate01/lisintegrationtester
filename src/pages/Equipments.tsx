@@ -163,13 +163,20 @@ export default function Equipments() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">Model</label>
-                <input
-                  type="text"
+                <select
                   required
-                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-500"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white"
                   value={newEquipment.model}
                   onChange={(e) => setNewEquipment({ ...newEquipment, model: e.target.value })}
-                />
+                >
+                  <option value="" disabled>Select a model</option>
+                  <option value="Mindray BS-200">Mindray BS-200</option>
+                  <option value="Mindray BS-220">Mindray BS-220</option>
+                  <option value="Mindray BS-120">Mindray BS-120</option>
+                  <option value="Mindray BS-130">Mindray BS-130</option>
+                  <option value="Generic HL7">Generic HL7</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

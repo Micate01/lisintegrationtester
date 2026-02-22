@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { Terminal, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
 
@@ -51,6 +51,28 @@ export default function Logs() {
     }
   };
 
+  const groupedLogs = useMemo(() => {
+    const groups: { [key: string]: Log & { count: number } } = {};
+    
+    // Process logs in reverse order (newest first) to keep the newest timestamp
+    // Assuming 'logs' is already sorted DESC by created_at from the API
+    logs.forEach(log => {
+      // Create a unique key based on content, direction, and equipment
+      // We ignore timestamp for grouping
+      const key = `${log.equipment_id}-${log.direction}-${log.message_type}-${log.raw_message}`;
+      
+      if (!groups[key]) {
+        groups[key] = { ...log, count: 1 };
+      } else {
+        groups[key].count++;
+      }
+    });
+
+    return Object.values(groups).sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }, [logs]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -87,17 +109,22 @@ export default function Logs() {
                     Loading logs...
                   </td>
                 </tr>
-              ) : logs.length === 0 ? (
+              ) : groupedLogs.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-zinc-500">
                     No logs recorded yet.
                   </td>
                 </tr>
               ) : (
-                logs.map((log) => (
+                groupedLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-zinc-800/50 transition-colors group">
                     <td className="px-6 py-3 whitespace-nowrap text-zinc-500">
                       {format(new Date(log.created_at), 'HH:mm:ss.SSS')}
+                      {log.count > 1 && (
+                        <span className="ml-2 px-1.5 py-0.5 rounded-full bg-zinc-700 text-zinc-300 text-xs">
+                          x{log.count}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-zinc-300">
                       {log.equipment_name || `Eq #${log.equipment_id}`}
