@@ -17,7 +17,11 @@ export async function handleMedconnMessage(message: string, socket: net.Socket, 
     if (segments.length <= 1 && (message.includes('PID|') || message.includes('OBR|') || message.includes('OBX|') || message.includes('QRD|'))) {
         console.log('[MedconnAdapter] Detected single segment, attempting robust split');
         const rawSegments = message.split(/(?=(?:MSH|PID|OBR|OBX|QRD|QRF|DSC)\s*\|)/).filter(s => s.trim() !== '');
-        segments = rawSegments.map(s => s.split('|'));
+        segments = rawSegments.map(s => {
+            const parts = s.trimStart().split('|');
+            if (parts.length > 0) parts[0] = parts[0].trim();
+            return parts;
+        });
     }
 
     const msh = segments.find(s => s[0] === 'MSH');
@@ -69,7 +73,7 @@ export async function handleMedconnMessage(message: string, socket: net.Socket, 
     } else {
         // Unknown type, just ACK
         console.log('[MedconnAdapter] Unknown message type, sending generic ACK');
-        sendACK(socket, msh, messageControlId, 'AA', options.isRaw);
+        await sendACK(socket, msh, messageControlId, 'AA', options.isRaw, db, equipmentId);
     }
 
   } catch (error) {
@@ -115,9 +119,11 @@ async function handleResults(segments: string[][], db: any, equipmentId: number,
         
         let resultTime = new Date();
         // OBR-7 is Date/Time of Observation usually, or check OBX-14
-        if (obr && obr[7]) {
+        // In some logs, time is at OBR-6 or OBR-7 (index 6 or 7)
+        const timeField = (obr && obr[7]) ? obr[7] : (obr && obr[6] ? obr[6] : null);
+        if (timeField) {
              // Parse YYYYMMDDHHMMSS
-             const t = obr[7];
+             const t = timeField;
              if (t.length >= 14) {
                  const year = parseInt(t.substring(0, 4));
                  const month = parseInt(t.substring(4, 6)) - 1;
@@ -150,7 +156,7 @@ async function handleResults(segments: string[][], db: any, equipmentId: number,
         }
     }
 
-    sendACK(socket, msh, messageControlId, 'AA', options.isRaw);
+    await sendACK(socket, msh, messageControlId, 'AA', options.isRaw, db, equipmentId);
 }
 
 async function handleQuery(segments: string[][], db: any, equipmentId: number, msh: string[], socket: net.Socket, messageControlId: string, options: { isRaw?: boolean }) {
@@ -238,7 +244,7 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
     );
 }
 
-function sendACK(socket: net.Socket, msh: string[], messageControlId: string, code: string, isRaw: boolean = false) {
+async function sendACK(socket: net.Socket, msh: string[], messageControlId: string, code: string, isRaw: boolean = false, db: any, equipmentId: number) {
     const date = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
     const ackMsh = `MSH|^~\\&|Medconn|MH|||${date}||ACK^R01|${messageControlId}|P|2.4||||||UNICODE||||`;
     const msa = `MSA|${code}|${messageControlId}||||0|`;
@@ -250,4 +256,11 @@ function sendACK(socket: net.Socket, msh: string[], messageControlId: string, co
         
     socket.write(ackBuffer);
     console.log(`[MedconnAdapter] Sent ACK (${code}). Raw: ${isRaw}`);
+
+    if (db && equipmentId) {
+        await db.query(
+            'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
+            [equipmentId, 'ACK^R01', 'OUT', response]
+        );
+    }
 }

@@ -7,7 +7,14 @@ export function parseHL7(message: string) {
   // but primarily focus on standard delimiters.
   // Some systems might use \n instead of \r.
   const segments = message.split(/\r\n|\r|\n/).filter(s => s.trim() !== '');
-  return segments.map(segment => segment.split('|'));
+  return segments.map(segment => {
+    const parts = segment.trimStart().split('|');
+    // Also trim the segment name just in case
+    if (parts.length > 0) {
+      parts[0] = parts[0].trim();
+    }
+    return parts;
+  });
 }
 
 export function generateACK(originalMsh: string[], ackCode: string, errorMsg: string = '') {
