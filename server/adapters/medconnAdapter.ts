@@ -90,14 +90,18 @@ async function handleResults(segments: string[][], db: any, equipmentId: number,
 
         let patientName = '';
         if (pid) {
-            // Patient name can be at index 5 or 6 depending on the device's exact HL7 dialect
-            patientName = pid[5]?.replace(/\^/g, ' ') || pid[6]?.replace(/\^/g, ' ') || '';
+            // Strict compliance with document: PID-5 is Patient's name
+            patientName = pid[5]?.replace(/\^/g, ' ') || '';
         }
         
-        // OBR-3 is Sample ID/Barcode in Medconn. Sometimes it's at OBR-4 (index 4) or OBR-2 (index 2)
-        const sampleBarcode = obr ? (obr[3] || obr[4] || obr[2] || '') : ''; 
+        // Strict compliance with document: OBR-3 is Sample Barcode, OBR-4 is Sample Number
+        const sampleBarcode = obr ? (obr[3] || '') : ''; 
+        const sampleNumber = obr ? (obr[4] || '') : '';
         
-        console.log(`[MedconnAdapter] Processing results for Sample: ${sampleBarcode}, Patient: ${patientName}`);
+        // Use barcode if available, otherwise fallback to sample number
+        const identifier = sampleBarcode || sampleNumber || '';
+        
+        console.log(`[MedconnAdapter] Processing results for Sample: ${identifier}, Patient: ${patientName}`);
 
         for (const obx of obxSegments) {
             try {
@@ -142,19 +146,19 @@ async function handleResults(segments: string[][], db: any, equipmentId: number,
                 const existing = await db.query(
                     `SELECT id FROM results 
                      WHERE equipment_id = $1 AND sample_barcode = $2 AND test_no = $3 AND result_time = $4`,
-                    [equipmentId, sampleBarcode, testNo, resultTime]
+                    [equipmentId, identifier, testNo, resultTime]
                 );
 
                 if (existing.rows.length === 0) {
                     await db.query(
                         `INSERT INTO results (equipment_id, sample_barcode, patient_name, test_no, test_name, result_value, result_unit, result_time)
                          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-                        [equipmentId, sampleBarcode, patientName, testNo, testName, resultValue, resultUnit, resultTime]
+                        [equipmentId, identifier, patientName, testNo, testName, resultValue, resultUnit, resultTime]
                     );
                 } else {
                      await db.query(
                         'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
-                        [equipmentId, 'DUPLICATE', 'INFO', `Duplicate result skipped: ${sampleBarcode} - ${testNo}`]
+                        [equipmentId, 'DUPLICATE', 'INFO', `Duplicate result skipped: ${identifier} - ${testNo}`]
                     );
                 }
             } catch (innerErr: any) {

@@ -159,6 +159,7 @@ async function handleHL7Message(message: string, socket: net.Socket, equipmentId
     
     if (!msh) return;
 
+    const isMedconn = msh[2]?.toLowerCase().includes('medconn');
     const messageType = msh[8]?.split('^')[0];
 
     // Log the incoming message
@@ -218,8 +219,8 @@ async function handleHL7Message(message: string, socket: net.Socket, equipmentId
       }
 
       // Send ACK
-      const ack = generateACK(msh, 'AA');
-      const ackBuffer = Buffer.concat([MLLP_START, Buffer.from(ack, 'latin1'), MLLP_END]);
+      const ack = generateACK(msh, 'AA', '', isMedconn);
+      const ackBuffer = Buffer.concat([MLLP_START, Buffer.from(ack, isMedconn ? 'utf8' : 'latin1'), MLLP_END]);
       socket.write(ackBuffer);
 
       // Log the outgoing ACK
