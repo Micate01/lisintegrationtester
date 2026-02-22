@@ -52,10 +52,25 @@ async function handleBS200Message(message: string, socket: net.Socket, equipment
   
   try {
     const db = getDb();
-    const segments = parseHL7(message);
+    let segments = parseHL7(message);
+
+    // If only one segment found but message seems to have multiple segments (e.g. missing newlines)
+    if (segments.length <= 1 && (message.includes('PID|') || message.includes('OBR|') || message.includes('OBX|'))) {
+        console.warn('Single segment detected with multiple segment markers. Attempting to split by segment headers.');
+        // This is a hacky fix for malformed messages where newlines are missing
+        // We look for "SegmentName|" pattern
+        const rawSegments = message.split(/(?=(?:MSH|PID|OBR|OBX|QRD|QRF|DSC)\s*\|)/).filter(s => s.trim() !== '');
+        segments = rawSegments.map(s => s.split('|'));
+    }
+
+    console.log(`Parsed ${segments.length} segments`);
+
     const msh = segments.find(s => s[0] === 'MSH');
     
-    if (!msh) return;
+    if (!msh) {
+        console.error('No MSH segment found');
+        return;
+    }
 
     // Find the field containing the message type (ORU or QRY)
     // The log shows it might be at index 7 instead of 8 due to missing fields
@@ -82,6 +97,8 @@ async function handleBS200Message(message: string, socket: net.Socket, equipment
       const pid = segments.find(s => s[0] === 'PID');
       const obr = segments.find(s => s[0] === 'OBR');
       const obxSegments = segments.filter(s => s[0] === 'OBX');
+
+      console.log(`Found ${obxSegments.length} OBX segments`);
 
       // PID-5: Patient Name
       const patientName = pid ? pid[5]?.replace(/\^/g, ' ') : '';
