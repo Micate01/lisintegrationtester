@@ -69,7 +69,7 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
                   
                   try {
                     if (model && model.toLowerCase().includes('medconn')) {
-                        await handleMedconnMessage(hl7Message, socket, equipmentId);
+                        await handleMedconnMessage(hl7Message, socket, equipmentId, { isRaw: true });
                     } else {
                         await handleHL7Message(hl7Message, socket, equipmentId);
                     }
@@ -96,7 +96,7 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
 
         try {
             if (model && model.toLowerCase().includes('medconn')) {
-                await handleMedconnMessage(hl7Message, socket, equipmentId);
+                await handleMedconnMessage(hl7Message, socket, equipmentId, { isRaw: false });
             } else {
                 await handleHL7Message(hl7Message, socket, equipmentId);
             }

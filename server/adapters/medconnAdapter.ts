@@ -2,8 +2,8 @@ import * as net from 'net';
 import { getDb } from '../db';
 import { parseHL7, MLLP_START, MLLP_END } from '../hl7-utils';
 
-export async function handleMedconnMessage(message: string, socket: net.Socket, equipmentId: number) {
-  console.log(`Received Medconn HL7 message from equipment ${equipmentId}`);
+export async function handleMedconnMessage(message: string, socket: net.Socket, equipmentId: number, options: { isRaw?: boolean } = {}) {
+  console.log(`[MedconnAdapter] Handling message for equipment ${equipmentId}. Raw mode: ${options.isRaw}`);
   
   // Compliance with Section 1.1.2 Data transmission:
   // "sending and receiving of messages are synchronized... after each message is sent, a confirmation message is awaited."
@@ -15,17 +15,23 @@ export async function handleMedconnMessage(message: string, socket: net.Socket, 
 
     // Robust parsing for missing newlines
     if (segments.length <= 1 && (message.includes('PID|') || message.includes('OBR|') || message.includes('OBX|') || message.includes('QRD|'))) {
+        console.log('[MedconnAdapter] Detected single segment, attempting robust split');
         const rawSegments = message.split(/(?=(?:MSH|PID|OBR|OBX|QRD|QRF|DSC)\s*\|)/).filter(s => s.trim() !== '');
         segments = rawSegments.map(s => s.split('|'));
     }
 
     const msh = segments.find(s => s[0] === 'MSH');
-    if (!msh) return;
+    if (!msh) {
+        console.error('[MedconnAdapter] No MSH segment found, cannot process');
+        return;
+    }
 
     // MSH-9: Message Type (e.g., ORU^R01 or QRY^Q02)
     const messageTypeField = msh[8] || ''; // Index 8 in 0-based array (9th field)
     const [messageType, triggerEvent] = messageTypeField.split('^');
     const messageControlId = msh[9] || ''; // MSH-10
+    
+    console.log(`[MedconnAdapter] Message Type: ${messageType}, Control ID: ${messageControlId}`);
 
     // Log incoming
     await db.query(
@@ -35,13 +41,14 @@ export async function handleMedconnMessage(message: string, socket: net.Socket, 
 
     if (messageType === 'ORU') {
       // Handle Results
-      await handleResults(segments, db, equipmentId, msh, socket, messageControlId);
+      await handleResults(segments, db, equipmentId, msh, socket, messageControlId, options);
     } else if (messageType === 'QRY') {
       // Handle Order Query
-      await handleQuery(segments, db, equipmentId, msh, socket, messageControlId);
+      await handleQuery(segments, db, equipmentId, msh, socket, messageControlId, options);
     } else {
         // Unknown type, just ACK
-        sendACK(socket, msh, messageControlId, 'AA');
+        console.log('[MedconnAdapter] Unknown message type, sending generic ACK');
+        sendACK(socket, msh, messageControlId, 'AA', options.isRaw);
     }
 
   } catch (error) {
@@ -49,7 +56,8 @@ export async function handleMedconnMessage(message: string, socket: net.Socket, 
   }
 }
 
-async function handleResults(segments: string[][], db: any, equipmentId: number, msh: string[], socket: net.Socket, messageControlId: string) {
+async function handleResults(segments: string[][], db: any, equipmentId: number, msh: string[], socket: net.Socket, messageControlId: string, options: { isRaw?: boolean }) {
+    console.log('[MedconnAdapter] Handling Results (ORU)');
     const pid = segments.find(s => s[0] === 'PID');
     const obr = segments.find(s => s[0] === 'OBR');
     const obxSegments = segments.filter(s => s[0] === 'OBX');
@@ -57,6 +65,8 @@ async function handleResults(segments: string[][], db: any, equipmentId: number,
     const patientName = pid ? pid[5]?.replace(/\^/g, ' ') : '';
     // OBR-3 is Sample ID/Barcode in Medconn
     const sampleBarcode = obr ? (obr[3] || obr[2]) : ''; 
+    
+    console.log(`[MedconnAdapter] Processing results for Sample: ${sampleBarcode}, Patient: ${patientName}`);
 
     for (const obx of obxSegments) {
         // OBX-3: Identifier (e.g., 6690-2^WBC^LN)
@@ -119,16 +129,19 @@ async function handleResults(segments: string[][], db: any, equipmentId: number,
         }
     }
 
-    sendACK(socket, msh, messageControlId, 'AA');
+    sendACK(socket, msh, messageControlId, 'AA', options.isRaw);
 }
 
-async function handleQuery(segments: string[][], db: any, equipmentId: number, msh: string[], socket: net.Socket, messageControlId: string) {
+async function handleQuery(segments: string[][], db: any, equipmentId: number, msh: string[], socket: net.Socket, messageControlId: string, options: { isRaw?: boolean }) {
+    console.log('[MedconnAdapter] Handling Query (QRY)');
     const qrd = segments.find(s => s[0] === 'QRD');
     if (!qrd) return;
 
     // QRD-9: Who Subject Filter (Sample ID) - Content 9 in doc, so Index 9 in split array (0=QRD, 1=Field1...)
     // Doc 3.4.1: 9 T00014 Query user filter
     const sampleId = qrd[9] || ''; 
+    
+    console.log(`[MedconnAdapter] Query for Sample ID: ${sampleId}`);
 
     // Check worklist
     const { rows } = await db.query('SELECT * FROM worklist WHERE sample_barcode = $1 LIMIT 1', [sampleId]);
@@ -144,6 +157,7 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
     let dspSegments = '';
 
     if (order) {
+        console.log('[MedconnAdapter] Order found, building DSP segments');
         msa = `MSA|AA|${messageControlId}||||0|`;
         
         const testMode = order.test_names || 'CBC+DIFF';
@@ -183,14 +197,19 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
         dspSegments = dspFields.join('|');
         
     } else {
+        console.log('[MedconnAdapter] Order not found, sending MSA|AE');
         msa = `MSA|AE|${messageControlId}||||204|`;
         // No DSP segments for failure? Doc 3.6 doesn't show DSP.
     }
 
     const response = `${resMsh}\r${msa}\r${dspSegments ? dspSegments + '\r' : ''}`;
     
-    const ackBuffer = Buffer.concat([MLLP_START, Buffer.from(response, 'utf8'), MLLP_END]); // Medconn uses UTF-8
+    const ackBuffer = options.isRaw 
+        ? Buffer.from(response, 'utf8') 
+        : Buffer.concat([MLLP_START, Buffer.from(response, 'utf8'), MLLP_END]);
+        
     socket.write(ackBuffer);
+    console.log(`[MedconnAdapter] Sent DSR response. Raw: ${options.isRaw}`);
 
     await db.query(
         'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
@@ -198,12 +217,16 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
     );
 }
 
-function sendACK(socket: net.Socket, msh: string[], messageControlId: string, code: string) {
+function sendACK(socket: net.Socket, msh: string[], messageControlId: string, code: string, isRaw: boolean = false) {
     const date = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
     const ackMsh = `MSH|^~\\&|Medconn|MH|||${date}||ACK^R01|${messageControlId}|P|2.4||||||UNICODE||||`;
     const msa = `MSA|${code}|${messageControlId}||||0|`;
     const response = `${ackMsh}\r${msa}\r`;
     
-    const ackBuffer = Buffer.concat([MLLP_START, Buffer.from(response, 'utf8'), MLLP_END]);
+    const ackBuffer = isRaw 
+        ? Buffer.from(response, 'utf8') 
+        : Buffer.concat([MLLP_START, Buffer.from(response, 'utf8'), MLLP_END]);
+        
     socket.write(ackBuffer);
+    console.log(`[MedconnAdapter] Sent ACK (${code}). Raw: ${isRaw}`);
 }
