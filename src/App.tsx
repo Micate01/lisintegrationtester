@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Equipments from './pages/Equipments';
 import Results from './pages/Results';
 import Worklist from './pages/Worklist';
+import Logs from './pages/Logs';
 
 export default function App() {
   return (
