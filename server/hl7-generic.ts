@@ -108,8 +108,8 @@ async function handleHL7Message(message: string, socket: net.Socket, equipmentId
 
         const existing = await db.query(
           `SELECT id FROM results 
-           WHERE equipment_id = $1 AND sample_barcode = $2 AND test_no = $3 AND result_time = $4`,
-          [equipmentId, sampleBarcode, testNo, resultTime]
+           WHERE equipment_id = $1 AND sample_barcode = $2 AND test_no = $3 AND result_value = $4`,
+          [equipmentId, sampleBarcode, testNo, resultValue]
         );
 
         if (existing.rows.length === 0) {
