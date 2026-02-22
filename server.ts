@@ -85,6 +85,18 @@ app.get('/api/results', async (req, res) => {
   }
 });
 
+app.delete('/api/results', async (req, res) => {
+  console.log('DELETE /api/results');
+  try {
+    const db = getDb();
+    await db.query('DELETE FROM results');
+    res.json({ message: 'Results cleared successfully' });
+  } catch (error) {
+    console.error('Error in DELETE /api/results:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 app.get('/api/logs', async (req, res) => {
   console.log('GET /api/logs');
   try {
