@@ -16,7 +16,12 @@ export function generateACK(originalMsh: string[], ackCode: string, errorMsg: st
   return `${msh}\r${msa}\r`;
 }
 
+const activeAdapters = new Map<number, net.Server>();
+
 export function startAdapter(port: number, equipmentId: number) {
+  // Stop existing adapter if running
+  stopAdapter(equipmentId);
+
   const server = net.createServer((socket) => {
     let buffer = Buffer.alloc(0);
 
@@ -47,7 +52,18 @@ export function startAdapter(port: number, equipmentId: number) {
     console.log(`Adapter for equipment ${equipmentId} listening on port ${port}`);
   });
   
+  activeAdapters.set(equipmentId, server);
   return server;
+}
+
+export function stopAdapter(equipmentId: number) {
+  const server = activeAdapters.get(equipmentId);
+  if (server) {
+    server.close(() => {
+      console.log(`Adapter for equipment ${equipmentId} stopped`);
+    });
+    activeAdapters.delete(equipmentId);
+  }
 }
 
 async function handleHL7Message(message: string, socket: net.Socket, equipmentId: number) {

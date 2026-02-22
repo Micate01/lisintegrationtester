@@ -9,7 +9,11 @@ class PostgresDatabase implements IDatabase {
   private pool: Pool;
 
   constructor(connectionString: string) {
-    this.pool = new Pool({ connectionString });
+    this.pool = new Pool({ 
+      connectionString,
+      connectionTimeoutMillis: 2000, // 2 second timeout
+      idleTimeoutMillis: 2000,
+    });
   }
 
   async query(text: string, params?: any[]): Promise<{ rows: any[] }> {

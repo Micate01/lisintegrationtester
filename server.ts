@@ -1,7 +1,7 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import { initDb, getDb } from './server/db';
-import { startAdapter } from './server/hl7';
+import { startAdapter, stopAdapter } from './server/hl7';
 import cors from 'cors';
 
 const app = express();
@@ -12,20 +12,24 @@ app.use(express.json());
 
 // API Routes
 app.get('/api/health', (req, res) => {
+  console.log('GET /api/health');
   res.json({ status: 'ok' });
 });
 
 app.get('/api/equipments', async (req, res) => {
+  console.log('GET /api/equipments');
   try {
     const db = getDb();
     const { rows } = await db.query('SELECT * FROM equipments ORDER BY id ASC');
     res.json(rows);
   } catch (error) {
+    console.error('Error in GET /api/equipments:', error);
     res.status(500).json({ error: 'Database error' });
   }
 });
 
 app.post('/api/equipments', async (req, res) => {
+  console.log('POST /api/equipments');
   try {
     const { name, model, ip_address, port } = req.body;
     const db = getDb();
@@ -40,11 +44,32 @@ app.post('/api/equipments', async (req, res) => {
     
     res.json(newEquipment);
   } catch (error) {
+    console.error('Error in POST /api/equipments:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.delete('/api/equipments/:id', async (req, res) => {
+  console.log('DELETE /api/equipments/:id');
+  try {
+    const { id } = req.params;
+    const db = getDb();
+    
+    // Stop adapter first
+    stopAdapter(parseInt(id));
+
+    // Delete from DB
+    await db.query('DELETE FROM equipments WHERE id = $1', [id]);
+    
+    res.json({ message: 'Equipment deleted successfully' });
+  } catch (error) {
+    console.error('Error in DELETE /api/equipments/:id:', error);
     res.status(500).json({ error: 'Database error' });
   }
 });
 
 app.get('/api/results', async (req, res) => {
+  console.log('GET /api/results');
   try {
     const db = getDb();
     const { rows } = await db.query(`
@@ -55,11 +80,13 @@ app.get('/api/results', async (req, res) => {
     `);
     res.json(rows);
   } catch (error) {
+    console.error('Error in GET /api/results:', error);
     res.status(500).json({ error: 'Database error' });
   }
 });
 
 app.get('/api/logs', async (req, res) => {
+  console.log('GET /api/logs');
   try {
     const db = getDb();
     const { rows } = await db.query(`
@@ -70,6 +97,7 @@ app.get('/api/logs', async (req, res) => {
     `);
     res.json(rows);
   } catch (error) {
+    console.error('Error in GET /api/logs:', error);
     res.status(500).json({ error: 'Database error' });
   }
 });

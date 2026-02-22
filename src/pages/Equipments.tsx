@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, Server, CheckCircle, XCircle } from 'lucide-react';
+import { useEffect, useState, FormEvent } from 'react';
+import { Plus, Server, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Equipment {
@@ -43,7 +43,7 @@ export default function Equipments() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleAddEquipment = async (e: React.FormEvent) => {
+  const handleAddEquipment = async (e: FormEvent) => {
     e.preventDefault();
     try {
       const res = await fetch('/api/equipments', {
@@ -65,6 +65,22 @@ export default function Equipments() {
     }
   };
 
+  const handleDeleteEquipment = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this equipment?')) return;
+    
+    try {
+      const res = await fetch(`/api/equipments/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        fetchEquipments();
+      }
+    } catch (error) {
+      console.error('Failed to delete equipment', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -83,7 +99,15 @@ export default function Equipments() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {equipments.map((eq) => (
-            <div key={eq.id} className="bg-white rounded-xl border border-zinc-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div key={eq.id} className="bg-white rounded-xl border border-zinc-200 p-6 shadow-sm hover:shadow-md transition-shadow relative group">
+              <button
+                onClick={() => handleDeleteEquipment(eq.id)}
+                className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                title="Delete Equipment"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+              
               <div className="flex justify-between items-start mb-4">
                 <div className="p-3 bg-zinc-100 rounded-lg">
                   <Server className="w-6 h-6 text-zinc-600" />
@@ -100,7 +124,7 @@ export default function Equipments() {
                 </div>
               </div>
               
-              <h3 className="text-lg font-semibold text-zinc-900 mb-1">{eq.name}</h3>
+              <h3 className="text-lg font-semibold text-zinc-900 mb-1 pr-8">{eq.name}</h3>
               <p className="text-sm text-zinc-500 mb-4">{eq.model}</p>
               
               <div className="space-y-2 border-t border-zinc-100 pt-4">
