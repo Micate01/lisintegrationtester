@@ -36,22 +36,29 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
     let buffer = Buffer.alloc(0);
 
     socket.on('data', async (data) => {
+      console.log(`[Adapter ${equipmentId}] Received ${data.length} bytes:`, data.toString('hex'));
       buffer = Buffer.concat([buffer, data]);
       
       let startIndex = buffer.indexOf(MLLP_START);
       let endIndex = buffer.indexOf(MLLP_END);
+      
+      console.log(`[Adapter ${equipmentId}] Buffer search - Start: ${startIndex}, End: ${endIndex}, Buffer len: ${buffer.length}`);
 
       while (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
         const payload = buffer.subarray(startIndex + 1, endIndex);
-        const hl7Message = payload.toString('latin1');
+        // Use UTF-8 for Medconn as per spec, latin1 for others/default
+        const encoding = (model && model.toLowerCase().includes('medconn')) ? 'utf8' : 'latin1';
+        const hl7Message = payload.toString(encoding);
         
+        console.log(`[Adapter ${equipmentId}] Processing message (${encoding}):`, hl7Message.substring(0, 50) + '...');
+
         if (model && model.toLowerCase().includes('medconn')) {
             await handleMedconnMessage(hl7Message, socket, equipmentId);
         } else {
             await handleHL7Message(hl7Message, socket, equipmentId);
         }
 
-        buffer = buffer.subarray(endIndex + 2);
+        buffer = buffer.subarray(endIndex + MLLP_END.length);
         startIndex = buffer.indexOf(MLLP_START);
         endIndex = buffer.indexOf(MLLP_END);
       }
