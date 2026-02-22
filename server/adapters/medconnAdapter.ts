@@ -164,9 +164,22 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
     const qrd = segments.find(s => s[0] === 'QRD');
     if (!qrd) return;
 
-    // QRD-9: Who Subject Filter (Sample ID) - Content 9 in doc, so Index 9 in split array (0=QRD, 1=Field1...)
-    // Doc 3.4.1: 9 T00014 Query user filter
-    const sampleId = qrd[9] || ''; 
+    // QRD-9: Who Subject Filter (Sample ID)
+    // Log: QRD|20260222204543|BC|D|1|||RD|000001|||||T|
+    // Index 0: QRD
+    // Index 1: 20260222204543
+    // Index 2: BC
+    // Index 3: D
+    // Index 4: 1
+    // Index 5: 
+    // Index 6: 
+    // Index 7: RD
+    // Index 8: 000001 (This is the Sample ID!)
+    
+    let sampleId = qrd[8] || ''; 
+    if (!sampleId && qrd[9]) {
+        sampleId = qrd[9];
+    }
     
     console.log(`[MedconnAdapter] Query for Sample ID: ${sampleId}`);
 
