@@ -49,6 +49,41 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
 
       if (startIndex === -1 && buffer.length > 0) {
           console.warn(`[Adapter ${equipmentId}] WARNING: Data received but no MLLP Start Block (0x0B) found yet.`);
+          
+          // Fallback: Check for Raw HL7 (starts with MSH)
+          const mshIndex = buffer.indexOf('MSH');
+          if (mshIndex !== -1) {
+              console.log(`[Adapter ${equipmentId}] Detected potential Raw HL7 (starts with MSH) at index ${mshIndex}`);
+              // If we have MSH, assume it might be a raw message ending with \r (0x0D)
+              // But we need to be careful about partial packets.
+              // Let's look for the last 0x0D in the buffer.
+              const lastCR = buffer.lastIndexOf(0x0d);
+              
+              if (lastCR !== -1 && lastCR > mshIndex) {
+                  console.log(`[Adapter ${equipmentId}] Found CR at ${lastCR}, attempting to process as Raw HL7`);
+                  const payload = buffer.subarray(mshIndex, lastCR + 1);
+                  const encoding = (model && model.toLowerCase().includes('medconn')) ? 'utf8' : 'latin1';
+                  const hl7Message = payload.toString(encoding);
+                  
+                  console.log(`[Adapter ${equipmentId}] Processing Raw message:`, hl7Message.substring(0, 50) + '...');
+                  
+                  try {
+                    if (model && model.toLowerCase().includes('medconn')) {
+                        await handleMedconnMessage(hl7Message, socket, equipmentId);
+                    } else {
+                        await handleHL7Message(hl7Message, socket, equipmentId);
+                    }
+                  } catch (err) {
+                      console.error(`[Adapter ${equipmentId}] Error processing raw message:`, err);
+                  }
+                  
+                  // Advance buffer
+                  buffer = buffer.subarray(lastCR + 1);
+                  // Reset indices for next loop (though we might be done)
+                  startIndex = buffer.indexOf(MLLP_START);
+                  endIndex = buffer.indexOf(MLLP_END);
+              }
+          }
       }
 
       while (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
