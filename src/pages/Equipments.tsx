@@ -24,9 +24,10 @@ export default function Equipments() {
     port: '',
   });
 
-  const brands = ['Mindray', 'Generic', 'Other'];
+  const brands = ['Mindray', 'Medconn', 'Generic', 'Other'];
   const modelsByBrand: { [key: string]: string[] } = {
     'Mindray': ['Mindray BS-200', 'Mindray BS-220', 'Mindray BS-120', 'Mindray BS-130'],
+    'Medconn': ['Medconn MH 120', 'Medconn MH 120X', 'Medconn MH 120R', 'Medconn MH 120C', 'Medconn MH 120S', 'Medconn MH 120CR', 'Medconn MH 120SR', 'Medconn MH 60'],
     'Generic': ['Generic HL7'],
     'Other': ['Other']
   };

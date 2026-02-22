@@ -127,6 +127,18 @@ export async function initDb() {
         raw_message TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS worklist (
+        id SERIAL PRIMARY KEY,
+        sample_barcode VARCHAR(255),
+        patient_id VARCHAR(255),
+        patient_name VARCHAR(255),
+        age VARCHAR(50),
+        sex VARCHAR(10),
+        test_names TEXT,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `);
     console.log('Database initialized successfully');
   } catch (error) {

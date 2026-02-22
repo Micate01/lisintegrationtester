@@ -2,6 +2,7 @@ import net from 'net';
 import { getDb } from './db';
 import { MLLP_START, MLLP_END, parseHL7, generateACK } from './hl7-utils';
 import { startMindrayBS200Adapter } from './adapters/mindrayBS200Adapter';
+import { handleMedconnMessage } from './adapters/medconnAdapter';
 
 export { MLLP_START, MLLP_END, parseHL7, generateACK };
 
@@ -32,7 +33,11 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
         const payload = buffer.subarray(startIndex + 1, endIndex);
         const hl7Message = payload.toString('latin1');
         
-        await handleHL7Message(hl7Message, socket, equipmentId);
+        if (model && model.toLowerCase().includes('medconn')) {
+            await handleMedconnMessage(hl7Message, socket, equipmentId);
+        } else {
+            await handleHL7Message(hl7Message, socket, equipmentId);
+        }
 
         buffer = buffer.subarray(endIndex + 2);
         startIndex = buffer.indexOf(MLLP_START);
