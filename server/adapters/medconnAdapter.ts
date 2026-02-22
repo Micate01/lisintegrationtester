@@ -27,9 +27,30 @@ export async function handleMedconnMessage(message: string, socket: net.Socket, 
     }
 
     // MSH-9: Message Type (e.g., ORU^R01 or QRY^Q02)
-    const messageTypeField = msh[8] || ''; // Index 8 in 0-based array (9th field)
+    // Standard is Index 8 (Field 9).
+    // However, some devices (like Medconn in logs) seem to shift fields or skip Security (Field 8), putting Message Type at Index 7 (Field 8).
+    // Log example: MSH|^&~\|Medconn|MH120SR||20260222...||ORU^R01|345345|...
+    // Index 7 is ORU^R01. Index 8 is 345345.
+    
+    let messageTypeField = msh[8] || ''; 
+    
+    // Heuristic: If Index 8 doesn't look like a message type (no ^, or not ORU/QRY), check Index 7.
+    if (!messageTypeField.includes('^') && !['ORU', 'QRY'].includes(messageTypeField)) {
+        const candidate = msh[7] || '';
+        if (candidate.includes('^') || ['ORU', 'QRY'].includes(candidate)) {
+            console.log(`[MedconnAdapter] Detected shifted Message Type at Index 7: ${candidate}`);
+            messageTypeField = candidate;
+        }
+    }
+
     const [messageType, triggerEvent] = messageTypeField.split('^');
-    const messageControlId = msh[9] || ''; // MSH-10
+    
+    // Message Control ID is usually MSH-10 (Index 9).
+    // If Message Type was at Index 7, Control ID might be at Index 8.
+    let messageControlId = msh[9] || ''; 
+    if (messageTypeField === msh[7]) {
+         messageControlId = msh[8] || '';
+    }
     
     console.log(`[MedconnAdapter] Message Type: ${messageType}, Control ID: ${messageControlId}`);
 
