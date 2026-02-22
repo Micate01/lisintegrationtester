@@ -57,8 +57,19 @@ async function handleBS200Message(message: string, socket: net.Socket, equipment
     
     if (!msh) return;
 
-    const messageType = msh[8]?.split('^')[0]; // ORU
-    const triggerEvent = msh[8]?.split('^')[1]; // R01
+    // Find the field containing the message type (ORU or QRY)
+    // The log shows it might be at index 7 instead of 8 due to missing fields
+    let typeIndex = msh.findIndex(f => f && (f.startsWith('ORU') || f.startsWith('QRY')));
+    
+    // Fallback to standard index 8 if not found (though standard is 9, in 0-based split it is 8)
+    if (typeIndex === -1) typeIndex = 8;
+
+    const messageTypeField = msh[typeIndex] || '';
+    const messageType = messageTypeField.split('^')[0]; // ORU
+    const triggerEvent = messageTypeField.split('^')[1]; // R01
+    
+    // Message Control ID is usually the next field
+    const messageControlId = msh[typeIndex + 1] || '';
 
     // Log the incoming message
     await db.query(
@@ -66,8 +77,8 @@ async function handleBS200Message(message: string, socket: net.Socket, equipment
       [equipmentId, `${messageType}^${triggerEvent}` || 'UNKNOWN', 'IN', message]
     );
 
-    if (messageType === 'ORU' && triggerEvent === 'R01') {
-      // Handle Results
+    if (messageType === 'ORU') {
+      // Handle Results (R01)
       const pid = segments.find(s => s[0] === 'PID');
       const obr = segments.find(s => s[0] === 'OBR');
       const obxSegments = segments.filter(s => s[0] === 'OBX');
@@ -118,7 +129,7 @@ async function handleBS200Message(message: string, socket: net.Socket, equipment
       }
 
       // Send ACK
-      const ack = generateBS200ACK(msh, 'AA');
+      const ack = generateBS200ACK(msh, 'AA', '', messageControlId);
       const ackBuffer = Buffer.concat([MLLP_START, Buffer.from(ack, 'latin1'), MLLP_END]);
       socket.write(ackBuffer);
 
@@ -129,18 +140,11 @@ async function handleBS200Message(message: string, socket: net.Socket, equipment
       );
     } else if (messageType === 'QRY' && triggerEvent === 'Q02') {
         // Handle Query for Sample Info
-        // For now, we just ACK it, as we don't have a full LIS order system implemented yet
-        // But we should log it.
         
         // Send QCK^Q02 (Query Acknowledgment)
-        // MSH|^~\&|LIS|LIS|||YYYYMMDDHHMMSS||QCK^Q02|1|P|2.3.1||||0||ASCII|||
-        // MSA|AA|MessageControlID|Message accepted|||0|
-        // ERR|0|
-        // QAK|SR|NF| (No data found for now)
-        
         const date = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
         const qckMsh = `MSH|^~\\&|LIS|LIS|||${date}||QCK^Q02|1|P|2.3.1||||0||ASCII|||`;
-        const msa = `MSA|AA|${msh[9] || ''}|Message accepted|||0|`;
+        const msa = `MSA|AA|${messageControlId}|Message accepted|||0|`;
         const err = `ERR|0|`;
         const qak = `QAK|SR|NF|`; // NF = No Data Found, OK = Data Found
         
