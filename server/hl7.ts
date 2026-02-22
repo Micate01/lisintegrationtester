@@ -94,13 +94,37 @@ async function handleHL7Message(message: string, socket: net.Socket, equipmentId
         const testName = obx[3]?.split('^')[1] || '';
         const resultValue = obx[5] || '';
         const resultUnit = obx[6] || '';
-        const resultTime = new Date(); // In a real scenario, parse from OBX[14] if available
+        
+        let resultTime = new Date();
+        if (obx[14]) {
+            const t = obx[14];
+            if (t.length >= 14) {
+                const year = parseInt(t.substring(0, 4));
+                const month = parseInt(t.substring(4, 6)) - 1;
+                const day = parseInt(t.substring(6, 8));
+                const hour = parseInt(t.substring(8, 10));
+                const min = parseInt(t.substring(10, 12));
+                const sec = parseInt(t.substring(12, 14));
+                resultTime = new Date(year, month, day, hour, min, sec);
+            }
+        }
 
-        await db.query(
-          `INSERT INTO results (equipment_id, sample_barcode, patient_name, test_no, test_name, result_value, result_unit, result_time)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [equipmentId, sampleBarcode, patientName, testNo, testName, resultValue, resultUnit, resultTime]
+        // Check for duplicates
+        const existing = await db.query(
+          `SELECT id FROM results 
+           WHERE equipment_id = $1 AND sample_barcode = $2 AND test_no = $3 AND result_time = $4`,
+          [equipmentId, sampleBarcode, testNo, resultTime]
         );
+
+        if (existing.rows.length === 0) {
+          await db.query(
+            `INSERT INTO results (equipment_id, sample_barcode, patient_name, test_no, test_name, result_value, result_unit, result_time)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [equipmentId, sampleBarcode, patientName, testNo, testName, resultValue, resultUnit, resultTime]
+          );
+        } else {
+          console.log(`Duplicate result skipped: ${sampleBarcode} - ${testNo}`);
+        }
       }
 
       // Send ACK

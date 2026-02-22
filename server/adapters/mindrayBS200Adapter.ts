@@ -138,11 +138,22 @@ async function handleBS200Message(message: string, socket: net.Socket, equipment
             }
         }
 
-        await db.query(
-          `INSERT INTO results (equipment_id, sample_barcode, patient_name, test_no, test_name, result_value, result_unit, result_time)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [equipmentId, barcodeToUse, patientName, testNo, testName, resultValue, resultUnit, resultTime]
+        // Check for duplicates
+        const existing = await db.query(
+          `SELECT id FROM results 
+           WHERE equipment_id = $1 AND sample_barcode = $2 AND test_no = $3 AND result_time = $4`,
+          [equipmentId, barcodeToUse, testNo, resultTime]
         );
+
+        if (existing.rows.length === 0) {
+          await db.query(
+            `INSERT INTO results (equipment_id, sample_barcode, patient_name, test_no, test_name, result_value, result_unit, result_time)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [equipmentId, barcodeToUse, patientName, testNo, testName, resultValue, resultUnit, resultTime]
+          );
+        } else {
+          console.log(`Duplicate result skipped: ${barcodeToUse} - ${testNo}`);
+        }
       }
 
       // Send ACK
