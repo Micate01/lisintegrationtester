@@ -97,6 +97,47 @@ app.delete('/api/results', async (req, res) => {
   }
 });
 
+app.get('/api/worklist', async (req, res) => {
+  console.log('GET /api/worklist');
+  try {
+    const db = getDb();
+    const { rows } = await db.query('SELECT * FROM worklist ORDER BY created_at DESC');
+    res.json(rows);
+  } catch (error) {
+    console.error('Error in GET /api/worklist:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.post('/api/worklist', async (req, res) => {
+  console.log('POST /api/worklist', req.body);
+  try {
+    const db = getDb();
+    const { sample_barcode, patient_id, patient_name, age, sex, test_names } = req.body;
+    await db.query(
+      `INSERT INTO worklist (sample_barcode, patient_id, patient_name, age, sex, test_names)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [sample_barcode, patient_id, patient_name, age, sex, test_names]
+    );
+    res.json({ message: 'Order added successfully' });
+  } catch (error) {
+    console.error('Error in POST /api/worklist:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.delete('/api/worklist/:id', async (req, res) => {
+  console.log('DELETE /api/worklist/:id', req.params.id);
+  try {
+    const db = getDb();
+    await db.query('DELETE FROM worklist WHERE id = $1', [req.params.id]);
+    res.json({ message: 'Order deleted successfully' });
+  } catch (error) {
+    console.error('Error in DELETE /api/worklist/:id:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 app.get('/api/logs', async (req, res) => {
   console.log('GET /api/logs');
   try {

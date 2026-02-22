@@ -132,56 +132,42 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
     if (order) {
         msa = `MSA|AA|${messageControlId}||||0|`;
         
-        // DSP Segments construction based on Doc 3.5.1
-        // DSP||||CBC+DIFF+SAA|N|CBC+DIFF|^||PID123||lucy||20221010122530|W|||||||||||||||||||||||32^Y|T00014|||
-        // We need to map our DB fields to this structure.
-        // Field 5: Measurement pattern (e.g. CBC+DIFF) - stored in test_names?
-        // Field 10: Patient ID
-        // Field 12: Patient Name
-        // Field 14: DOB (or date?)
-        // Field 15: Sex
-        // Field 32: Age
-        
         const testMode = order.test_names || 'CBC+DIFF';
         const pid = order.patient_id || '';
         const name = order.patient_name || '';
-        const dob = ''; // We might not have DOB in worklist, maybe created_at?
-        const sex = order.sex || 'U';
+        // Format DOB if available, else empty. Assuming order.created_at for now if needed, but better empty.
+        const dob = ''; 
+        const sex = order.sex || 'M'; // Default to M if unknown, or U
         const age = order.age || ''; // e.g. "32^Y"
 
-        // Construct DSP line. Note: The doc example puts data in specific fields.
-        // DSP field indices (1-based):
-        // 1: Set ID (empty)
-        // ...
-        // 5: Measurement pattern
-        // 6: Review (N)
-        // 7: Review mode?
-        // 8: Location
-        // 9: Patient ID? (Doc says "patient ID" for field 9, "Patient identification form" for 10)
-        // 10: Patient ID (Medical Record Num)
-        // 12: Name
-        // 14: DOB
-        // 15: Sex
-        // 32: Age
-        
-        // Using array to build DSP safely
+        // DSP Segment Construction
+        // Indices based on 0-based split of "DSP|...":
+        // 0: DSP
+        // 4: Measurement pattern (Field 5)
+        // 5: Review (Field 6)
+        // 6: Review mode (Field 7)
+        // 7: Location (Field 8)
+        // 9: Patient ID (Field 10)
+        // 11: Name (Field 12)
+        // 13: DOB (Field 14)
+        // 14: Sex (Field 15)
+        // 31: Age (Field 32)
+        // 32: Sample ID / Handler (Field 33 - matching example T00014)
+
         const dspFields = new Array(34).fill('');
         dspFields[0] = 'DSP';
-        dspFields[5] = testMode; // Field 5
-        dspFields[6] = 'N';
-        dspFields[9] = pid; // Field 9 or 10? Doc says 9 is "patient ID", 10 is "Patient identification form". Example has PID123 in field 10 (index 9 in 0-based split? No, pipe counting).
-        // Let's count pipes in example:
-        // DSP||||CBC... -> DSP is 0. | is 1.
-        // DSP | | | | CBC+DIFF+SAA (5) | N (6) | ...
-        // Let's just use the example structure.
-        
-        // DSP||||TestMode|N|TestMode|^||PatID||Name||DOB|Sex|||||||||||||||||||||||Age|SampleID|||
-        
-        // Reconstructing based on visual count of example:
-        // DSP||||CBC+DIFF+SAA|N|CBC+DIFF|^||PID123||lucy||2022...|W|...
-        
-        // Let's build it manually to be safe
-        dspSegments = `DSP||||${testMode}|N|${testMode}|^||${pid}||${name}||${dob}|${sex}|||||||||||||||||||||||${age}|${sampleId}|||`;
+        dspFields[4] = testMode;
+        dspFields[5] = 'N';
+        dspFields[6] = testMode;
+        dspFields[7] = '^';
+        dspFields[9] = pid;
+        dspFields[11] = name;
+        dspFields[13] = dob;
+        dspFields[14] = sex;
+        dspFields[31] = age;
+        dspFields[32] = sampleId; // Placing Sample ID in Field 33 to match example
+
+        dspSegments = dspFields.join('|');
         
     } else {
         msa = `MSA|AE|${messageControlId}||||204|`;

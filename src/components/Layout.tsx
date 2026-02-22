@@ -11,6 +11,7 @@ export default function Layout() {
   const navigation = [
     { name: 'Dashboard', href: '/', icon: Activity },
     { name: 'Equipments', href: '/equipments', icon: Server },
+    { name: 'Worklist', href: '/worklist', icon: List },
     { name: 'Results', href: '/results', icon: FileText },
     { name: 'Logs', href: '/logs', icon: List },
   ];

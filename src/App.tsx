@@ -3,7 +3,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Equipments from './pages/Equipments';
 import Results from './pages/Results';
-import Logs from './pages/Logs';
+import Worklist from './pages/Worklist';
 
 export default function App() {
   return (
@@ -13,6 +13,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="equipments" element={<Equipments />} />
           <Route path="results" element={<Results />} />
+          <Route path="worklist" element={<Worklist />} />
           <Route path="logs" element={<Logs />} />
         </Route>
       </Routes>
