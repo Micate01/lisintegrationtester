@@ -124,6 +124,10 @@ async function handleHL7Message(message: string, socket: net.Socket, equipmentId
           );
         } else {
           console.log(`Duplicate result skipped: ${sampleBarcode} - ${testNo}`);
+          await db.query(
+            'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
+            [equipmentId, 'DUPLICATE', 'INFO', `Duplicate result skipped: ${sampleBarcode} - ${testNo} (${testName})`]
+          );
         }
       }
 

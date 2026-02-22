@@ -153,6 +153,10 @@ async function handleBS200Message(message: string, socket: net.Socket, equipment
           );
         } else {
           console.log(`Duplicate result skipped: ${barcodeToUse} - ${testNo}`);
+          await db.query(
+            'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
+            [equipmentId, 'DUPLICATE', 'INFO', `Duplicate result skipped: ${barcodeToUse} - ${testNo} (${testName})`]
+          );
         }
       }
 

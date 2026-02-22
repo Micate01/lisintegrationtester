@@ -102,6 +102,18 @@ app.get('/api/logs', async (req, res) => {
   }
 });
 
+app.delete('/api/logs', async (req, res) => {
+  console.log('DELETE /api/logs');
+  try {
+    const db = getDb();
+    await db.query('DELETE FROM logs');
+    res.json({ message: 'Logs cleared successfully' });
+  } catch (error) {
+    console.error('Error in DELETE /api/logs:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 async function startServer() {
   // Initialize Database
   await initDb();

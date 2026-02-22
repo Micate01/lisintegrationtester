@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { Terminal, ArrowUp, ArrowDown } from 'lucide-react';
+import { Terminal, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
 
 interface Log {
   id: number;
@@ -16,30 +16,52 @@ export default function Logs() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        const res = await fetch('/api/logs');
-        if (res.ok) {
-          const data = await res.json();
-          setLogs(data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch logs', error);
-      } finally {
-        setLoading(false);
+  const fetchLogs = async () => {
+    try {
+      const res = await fetch('/api/logs');
+      if (res.ok) {
+        const data = await res.json();
+        setLogs(data);
       }
-    };
+    } catch (error) {
+      console.error('Failed to fetch logs', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchLogs();
     const interval = setInterval(fetchLogs, 2000); // Faster refresh for logs
     return () => clearInterval(interval);
   }, []);
 
+  const handleClearLogs = async () => {
+    if (!confirm('Are you sure you want to clear all logs?')) return;
+    
+    try {
+      const res = await fetch('/api/logs', {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        fetchLogs();
+      }
+    } catch (error) {
+      console.error('Failed to clear logs', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-zinc-900">HL7 Communication Logs</h2>
+        <button
+          onClick={handleClearLogs}
+          className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg flex items-center transition-colors border border-red-200"
+        >
+          <Trash2 className="w-4 h-4 mr-2" />
+          Clear Logs
+        </button>
       </div>
 
       <div className="bg-zinc-900 rounded-xl border border-zinc-800 shadow-lg overflow-hidden">
