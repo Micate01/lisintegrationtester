@@ -83,80 +83,99 @@ export async function handleMedconnMessage(message: string, socket: net.Socket, 
 
 async function handleResults(segments: string[][], db: any, equipmentId: number, msh: string[], socket: net.Socket, messageControlId: string, options: { isRaw?: boolean }) {
     console.log('[MedconnAdapter] Handling Results (ORU)');
-    const pid = segments.find(s => s[0] === 'PID');
-    const obr = segments.find(s => s[0] === 'OBR');
-    const obxSegments = segments.filter(s => s[0] === 'OBX');
+    try {
+        const pid = segments.find(s => s[0] === 'PID');
+        const obr = segments.find(s => s[0] === 'OBR');
+        const obxSegments = segments.filter(s => s[0] === 'OBX');
 
-    const patientName = pid ? pid[5]?.replace(/\^/g, ' ') : '';
-    // OBR-3 is Sample ID/Barcode in Medconn
-    const sampleBarcode = obr ? (obr[3] || obr[2]) : ''; 
-    
-    console.log(`[MedconnAdapter] Processing results for Sample: ${sampleBarcode}, Patient: ${patientName}`);
-
-    for (const obx of obxSegments) {
-        // OBX-3: Identifier (e.g., 6690-2^WBC^LN)
-        const testIdFull = obx[3] || '';
-        const parts = testIdFull.split('^');
-        const testNo = parts[0] || ''; // 6690-2
-        const testName = parts[1] || ''; // WBC
-
-        // OBX-5: Data value type ^ Data string (e.g. 0^7.780000)
-        // 0: Value, 1: String, etc.
-        const rawResultValue = obx[5] || '';
-        let resultValue = rawResultValue;
+        let patientName = '';
+        if (pid) {
+            // Patient name can be at index 5 or 6 depending on the device's exact HL7 dialect
+            patientName = pid[5]?.replace(/\^/g, ' ') || pid[6]?.replace(/\^/g, ' ') || '';
+        }
         
-        if (rawResultValue.includes('^')) {
-            const valParts = rawResultValue.split('^');
-            // If it starts with a number type (0, 1, etc), take the second part
-            if (valParts.length > 1 && /^\d+$/.test(valParts[0])) {
-                resultValue = valParts[1];
+        // OBR-3 is Sample ID/Barcode in Medconn. Sometimes it's at OBR-4 (index 4) or OBR-2 (index 2)
+        const sampleBarcode = obr ? (obr[3] || obr[4] || obr[2] || '') : ''; 
+        
+        console.log(`[MedconnAdapter] Processing results for Sample: ${sampleBarcode}, Patient: ${patientName}`);
+
+        for (const obx of obxSegments) {
+            try {
+                // OBX-3: Identifier (e.g., 6690-2^WBC^LN)
+                const testIdFull = obx[3] || '';
+                const parts = testIdFull.split('^');
+                const testNo = parts[0] || ''; // 6690-2
+                const testName = parts[1] || ''; // WBC
+
+                // OBX-5: Data value type ^ Data string (e.g. 0^7.780000)
+                // 0: Value, 1: String, etc.
+                const rawResultValue = obx[5] || '';
+                let resultValue = rawResultValue;
+                
+                if (rawResultValue.includes('^')) {
+                    const valParts = rawResultValue.split('^');
+                    // If it starts with a number type (0, 1, etc), take the second part
+                    if (valParts.length > 1 && /^\d+$/.test(valParts[0])) {
+                        resultValue = valParts[1];
+                    }
+                }
+
+                const resultUnit = obx[6] || '';
+                
+                console.log(`Parsed result: ${testName} (${testNo}) = ${resultValue} ${resultUnit}`);
+                
+                let resultTime = new Date();
+                // OBR-7 is Date/Time of Observation usually, or check OBX-14
+                // In some logs, time is at OBR-6 or OBR-7 (index 6 or 7)
+                const timeField = (obr && obr[7]) ? obr[7] : (obr && obr[6] ? obr[6] : null);
+                if (timeField && timeField.length >= 14) {
+                     const year = parseInt(timeField.substring(0, 4));
+                     const month = parseInt(timeField.substring(4, 6)) - 1;
+                     const day = parseInt(timeField.substring(6, 8));
+                     const hour = parseInt(timeField.substring(8, 10));
+                     const min = parseInt(timeField.substring(10, 12));
+                     const sec = parseInt(timeField.substring(12, 14));
+                     resultTime = new Date(year, month, day, hour, min, sec);
+                }
+
+                // Duplicate check
+                const existing = await db.query(
+                    `SELECT id FROM results 
+                     WHERE equipment_id = $1 AND sample_barcode = $2 AND test_no = $3 AND result_time = $4`,
+                    [equipmentId, sampleBarcode, testNo, resultTime]
+                );
+
+                if (existing.rows.length === 0) {
+                    await db.query(
+                        `INSERT INTO results (equipment_id, sample_barcode, patient_name, test_no, test_name, result_value, result_unit, result_time)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                        [equipmentId, sampleBarcode, patientName, testNo, testName, resultValue, resultUnit, resultTime]
+                    );
+                } else {
+                     await db.query(
+                        'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
+                        [equipmentId, 'DUPLICATE', 'INFO', `Duplicate result skipped: ${sampleBarcode} - ${testNo}`]
+                    );
+                }
+            } catch (innerErr: any) {
+                console.error(`[MedconnAdapter] Error processing OBX segment:`, innerErr);
+                await db.query(
+                    'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
+                    [equipmentId, 'ERROR', 'SYS', `Error processing OBX: ${innerErr.message}`]
+                );
             }
         }
 
-        const resultUnit = obx[6] || '';
-        
-        console.log(`Parsed result: ${testName} (${testNo}) = ${resultValue} ${resultUnit}`);
-        
-        let resultTime = new Date();
-        // OBR-7 is Date/Time of Observation usually, or check OBX-14
-        // In some logs, time is at OBR-6 or OBR-7 (index 6 or 7)
-        const timeField = (obr && obr[7]) ? obr[7] : (obr && obr[6] ? obr[6] : null);
-        if (timeField) {
-             // Parse YYYYMMDDHHMMSS
-             const t = timeField;
-             if (t.length >= 14) {
-                 const year = parseInt(t.substring(0, 4));
-                 const month = parseInt(t.substring(4, 6)) - 1;
-                 const day = parseInt(t.substring(6, 8));
-                 const hour = parseInt(t.substring(8, 10));
-                 const min = parseInt(t.substring(10, 12));
-                 const sec = parseInt(t.substring(12, 14));
-                 resultTime = new Date(year, month, day, hour, min, sec);
-             }
-        }
-
-        // Duplicate check
-        const existing = await db.query(
-            `SELECT id FROM results 
-             WHERE equipment_id = $1 AND sample_barcode = $2 AND test_no = $3 AND result_time = $4`,
-            [equipmentId, sampleBarcode, testNo, resultTime]
+        await sendACK(socket, msh, messageControlId, 'AA', options.isRaw, db, equipmentId);
+    } catch (err: any) {
+        console.error(`[MedconnAdapter] Fatal error in handleResults:`, err);
+        await db.query(
+            'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
+            [equipmentId, 'ERROR', 'SYS', `Fatal error in handleResults: ${err.message}\n${err.stack}`]
         );
-
-        if (existing.rows.length === 0) {
-            await db.query(
-                `INSERT INTO results (equipment_id, sample_barcode, patient_name, test_no, test_name, result_value, result_unit, result_time)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-                [equipmentId, sampleBarcode, patientName, testNo, testName, resultValue, resultUnit, resultTime]
-            );
-        } else {
-             await db.query(
-                'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
-                [equipmentId, 'DUPLICATE', 'INFO', `Duplicate result skipped: ${sampleBarcode} - ${testNo}`]
-            );
-        }
+        // Still try to send AE ACK
+        await sendACK(socket, msh, messageControlId, 'AE', options.isRaw, db, equipmentId);
     }
-
-    await sendACK(socket, msh, messageControlId, 'AA', options.isRaw, db, equipmentId);
 }
 
 async function handleQuery(segments: string[][], db: any, equipmentId: number, msh: string[], socket: net.Socket, messageControlId: string, options: { isRaw?: boolean }) {
@@ -209,36 +228,24 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
 
         // DSP Segment Construction
         // According to section 3.5.1 DSP: Display data segment
-        // Content 1: DSP
-        // Content 5: Measurement pattern (CBC+DIFF+SAA)
-        // Content 6: Whether to review (N)
-        // Content 7: Review mode (CBC+DIFF+RET+F-PLT+WPC+CRP+SAA)
-        // Content 8: Patient location information (^)
-        // Content 10: Patient ID (PID123)
-        // Content 12: Patient's name (lucy)
-        // Content 14: Date of birth (20221010122530)
-        // Content 15: Sex (W)
-        // Content 38: Age (32^Y)
-        // Content 39: Applicant number (T00014)
-
-        const dspFields = new Array(40).fill('');
+        // The example shows 71 fields.
+        const dspFields = new Array(72).fill('');
         dspFields[0] = 'DSP';
-        dspFields[1] = ''; // IDDSP
-        dspFields[2] = ''; // Number of test items
-        dspFields[3] = ''; // Test information sheet
-        dspFields[4] = testMode; // Content 5
-        dspFields[5] = 'N'; // Content 6
-        dspFields[6] = testMode; // Content 7
-        dspFields[7] = '^'; // Content 8
-        dspFields[8] = ''; // Content 9
-        dspFields[9] = pid; // Content 10
-        dspFields[10] = ''; // Content 11
-        dspFields[11] = name; // Content 12
-        dspFields[12] = ''; // Content 13
-        dspFields[13] = dob; // Content 14
-        dspFields[14] = sex; // Content 15
-        dspFields[37] = age; // Content 38
-        dspFields[38] = sampleId; // Content 39
+        dspFields[4] = testMode; // Content 5: Measurement pattern
+        dspFields[5] = 'N'; // Content 6: Whether to review
+        dspFields[6] = testMode; // Content 7: Review mode
+        dspFields[7] = '^'; // Content 8: Patient location
+        dspFields[9] = pid; // Content 10: Patient ID
+        dspFields[11] = name; // Content 12: Patient name
+        dspFields[13] = dob; // Content 14: Date of birth
+        dspFields[14] = sex; // Content 15: Sex
+        dspFields[37] = age; // Content 38: Age (e.g. 32^Y)
+        dspFields[38] = sampleId; // Content 39: Applicant number (barcode)
+        dspFields[41] = 'N'; // Content 42: Emergency (N)
+        dspFields[42] = date; // Content 43: Date and time of application
+        dspFields[47] = '0.000000'; // Content 48: Sample processing code (dilution)
+        dspFields[69] = '1'; // Content 70: Sample blood type (1 = whole blood)
+        dspFields[70] = '0'; // Content 71: Type of reexamination (0)
 
         dspSegments = dspFields.join('|');
         
