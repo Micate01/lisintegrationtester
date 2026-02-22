@@ -5,6 +5,10 @@ import { parseHL7, MLLP_START, MLLP_END } from '../hl7-utils';
 export async function handleMedconnMessage(message: string, socket: net.Socket, equipmentId: number) {
   console.log(`Received Medconn HL7 message from equipment ${equipmentId}`);
   
+  // Compliance with Section 1.1.2 Data transmission:
+  // "sending and receiving of messages are synchronized... after each message is sent, a confirmation message is awaited."
+  // We must respond with ACK/Response immediately (within 2 seconds).
+  
   try {
     const db = getDb();
     let segments = parseHL7(message);
@@ -61,8 +65,22 @@ async function handleResults(segments: string[][], db: any, equipmentId: number,
         const testNo = parts[0] || ''; // 6690-2
         const testName = parts[1] || ''; // WBC
 
-        const resultValue = obx[5] || '';
+        // OBX-5: Data value type ^ Data string (e.g. 0^7.780000)
+        // 0: Value, 1: String, etc.
+        const rawResultValue = obx[5] || '';
+        let resultValue = rawResultValue;
+        
+        if (rawResultValue.includes('^')) {
+            const valParts = rawResultValue.split('^');
+            // If it starts with a number type (0, 1, etc), take the second part
+            if (valParts.length > 1 && /^\d+$/.test(valParts[0])) {
+                resultValue = valParts[1];
+            }
+        }
+
         const resultUnit = obx[6] || '';
+        
+        console.log(`Parsed result: ${testName} (${testNo}) = ${resultValue} ${resultUnit}`);
         
         let resultTime = new Date();
         // OBR-7 is Date/Time of Observation usually, or check OBX-14
@@ -108,8 +126,9 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
     const qrd = segments.find(s => s[0] === 'QRD');
     if (!qrd) return;
 
-    // QRD-9: Who Subject Filter (Sample ID)
-    const sampleId = qrd[8] || ''; // Index 8
+    // QRD-9: Who Subject Filter (Sample ID) - Content 9 in doc, so Index 9 in split array (0=QRD, 1=Field1...)
+    // Doc 3.4.1: 9 T00014 Query user filter
+    const sampleId = qrd[9] || ''; 
 
     // Check worklist
     const { rows } = await db.query('SELECT * FROM worklist WHERE sample_barcode = $1 LIMIT 1', [sampleId]);
@@ -121,11 +140,6 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
     // MSH
     const resMsh = `MSH|^~\\&|Medconn|MH|||${date}||DSR^Q03|${messageControlId}|P|2.4||||||UNICODE||||`;
     
-    // MSA
-    // If order found -> AA, else -> AE (according to doc 3.6 for "no order")
-    // Doc says: "Order request returned (no order) ... MSA|AE|||||204|"
-    // "Order request returned (an order exists) ... MSA|AA|||||0|"
-    
     let msa = '';
     let dspSegments = '';
 
@@ -135,26 +149,25 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
         const testMode = order.test_names || 'CBC+DIFF';
         const pid = order.patient_id || '';
         const name = order.patient_name || '';
-        // Format DOB if available, else empty. Assuming order.created_at for now if needed, but better empty.
         const dob = ''; 
-        const sex = order.sex || 'M'; // Default to M if unknown, or U
+        const sex = order.sex || 'M'; 
         const age = order.age || ''; // e.g. "32^Y"
 
         // DSP Segment Construction
-        // Indices based on 0-based split of "DSP|...":
-        // 0: DSP
-        // 4: Measurement pattern (Field 5)
-        // 5: Review (Field 6)
-        // 6: Review mode (Field 7)
-        // 7: Location (Field 8)
-        // 9: Patient ID (Field 10)
-        // 11: Name (Field 12)
-        // 13: DOB (Field 14)
-        // 14: Sex (Field 15)
-        // 31: Age (Field 32)
-        // 32: Sample ID / Handler (Field 33 - matching example T00014)
+        // Indices based on Doc 3.5.1 and 4.4 tables
+        // Index = Content Number - 1
+        // Content 5: Measurement pattern -> Index 4
+        // Content 6: Review -> Index 5
+        // Content 7: Review mode -> Index 6
+        // Content 8: Location -> Index 7
+        // Content 10: Patient ID -> Index 9
+        // Content 12: Name -> Index 11
+        // Content 14: DOB -> Index 13
+        // Content 15: Sex -> Index 14
+        // Content 38: Age (32^Y) -> Index 37 (See Doc 4.4.18 / Page 22/23 transition)
+        // Content 39: Applicant number (Sample ID) -> Index 38
 
-        const dspFields = new Array(34).fill('');
+        const dspFields = new Array(40).fill('');
         dspFields[0] = 'DSP';
         dspFields[4] = testMode;
         dspFields[5] = 'N';
@@ -164,8 +177,8 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
         dspFields[11] = name;
         dspFields[13] = dob;
         dspFields[14] = sex;
-        dspFields[31] = age;
-        dspFields[32] = sampleId; // Placing Sample ID in Field 33 to match example
+        dspFields[37] = age;
+        dspFields[38] = sampleId;
 
         dspSegments = dspFields.join('|');
         
