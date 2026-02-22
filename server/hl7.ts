@@ -1,8 +1,8 @@
 import net from 'net';
 import { getDb } from './db';
 
-const MLLP_START = Buffer.from([0x0b]);
-const MLLP_END = Buffer.from([0x1c, 0x0d]);
+export const MLLP_START = Buffer.from([0x0b]);
+export const MLLP_END = Buffer.from([0x1c, 0x0d]);
 
 export function parseHL7(message: string) {
   const segments = message.split('\r').filter(s => s.trim() !== '');
@@ -18,9 +18,18 @@ export function generateACK(originalMsh: string[], ackCode: string, errorMsg: st
 
 const activeAdapters = new Map<number, net.Server>();
 
-export function startAdapter(port: number, equipmentId: number) {
+export function startAdapter(port: number, equipmentId: number, model: string) {
   // Stop existing adapter if running
   stopAdapter(equipmentId);
+
+  // Check for specific adapter
+  if (model.toLowerCase().includes('bs-200') || model.toLowerCase().includes('bs200')) {
+    console.log(`Starting Mindray BS-200 adapter for equipment ${equipmentId}`);
+    const { startMindrayBS200Adapter } = require('./adapters/mindrayBS200Adapter');
+    const server = startMindrayBS200Adapter(port, equipmentId);
+    activeAdapters.set(equipmentId, server);
+    return server;
+  }
 
   const server = net.createServer((socket) => {
     let buffer = Buffer.alloc(0);

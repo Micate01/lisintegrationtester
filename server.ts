@@ -40,7 +40,7 @@ app.post('/api/equipments', async (req, res) => {
     const newEquipment = rows[0];
     
     // Start adapter for the new equipment
-    startAdapter(newEquipment.port, newEquipment.id);
+    startAdapter(newEquipment.port, newEquipment.id, newEquipment.model);
     
     res.json(newEquipment);
   } catch (error) {
@@ -111,7 +111,7 @@ async function startServer() {
     const db = getDb();
     const { rows } = await db.query('SELECT * FROM equipments');
     for (const equipment of rows) {
-      startAdapter(equipment.port, equipment.id);
+      startAdapter(equipment.port, equipment.id, equipment.model);
     }
   } catch (error) {
     console.error('Failed to start adapters. Database might not be configured.');
