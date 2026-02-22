@@ -5,6 +5,12 @@ import { handleBS200Message } from '../hl7-mindray';
 
 export function startMindrayBS200Adapter(port: number, equipmentId: number) {
   const server = net.createServer((socket) => {
+    console.log(`[Mindray BS-200] Client connected to equipment ${equipmentId} (Port ${port})`);
+
+    // Update status to connected
+    getDb().query('UPDATE equipments SET status = $1 WHERE id = $2', ['connected', equipmentId])
+      .catch(err => console.error(`Failed to update status for equipment ${equipmentId}:`, err));
+
     let buffer = Buffer.alloc(0);
 
     socket.on('data', async (data) => {
@@ -23,6 +29,13 @@ export function startMindrayBS200Adapter(port: number, equipmentId: number) {
         startIndex = buffer.indexOf(MLLP_START);
         endIndex = buffer.indexOf(MLLP_END);
       }
+    });
+
+    socket.on('close', () => {
+        console.log(`[Mindray BS-200] Client disconnected from equipment ${equipmentId}`);
+        // Update status to disconnected
+        getDb().query('UPDATE equipments SET status = $1 WHERE id = $2', ['disconnected', equipmentId])
+          .catch(err => console.error(`Failed to update status for equipment ${equipmentId}:`, err));
     });
 
     socket.on('error', (err) => {
