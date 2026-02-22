@@ -36,13 +36,20 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
     let buffer = Buffer.alloc(0);
 
     socket.on('data', async (data) => {
-      console.log(`[Adapter ${equipmentId}] Received ${data.length} bytes:`, data.toString('hex'));
+      console.log(`[Adapter ${equipmentId}] Received ${data.length} bytes. Hex: ${data.toString('hex')}`);
+      // Try to print as string to see if it's readable text
+      console.log(`[Adapter ${equipmentId}] ASCII preview: ${data.toString('latin1').replace(/[\x00-\x1F\x7F]/g, '.')}`);
+      
       buffer = Buffer.concat([buffer, data]);
       
       let startIndex = buffer.indexOf(MLLP_START);
       let endIndex = buffer.indexOf(MLLP_END);
       
-      console.log(`[Adapter ${equipmentId}] Buffer search - Start: ${startIndex}, End: ${endIndex}, Buffer len: ${buffer.length}`);
+      console.log(`[Adapter ${equipmentId}] Buffer state - Length: ${buffer.length}, StartIdx: ${startIndex}, EndIdx: ${endIndex}`);
+
+      if (startIndex === -1 && buffer.length > 0) {
+          console.warn(`[Adapter ${equipmentId}] WARNING: Data received but no MLLP Start Block (0x0B) found yet.`);
+      }
 
       while (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
         const payload = buffer.subarray(startIndex + 1, endIndex);
@@ -50,17 +57,25 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
         const encoding = (model && model.toLowerCase().includes('medconn')) ? 'utf8' : 'latin1';
         const hl7Message = payload.toString(encoding);
         
-        console.log(`[Adapter ${equipmentId}] Processing message (${encoding}):`, hl7Message.substring(0, 50) + '...');
+        console.log(`[Adapter ${equipmentId}] Processing complete message (${encoding}, ${payload.length} bytes)`);
 
-        if (model && model.toLowerCase().includes('medconn')) {
-            await handleMedconnMessage(hl7Message, socket, equipmentId);
-        } else {
-            await handleHL7Message(hl7Message, socket, equipmentId);
+        try {
+            if (model && model.toLowerCase().includes('medconn')) {
+                await handleMedconnMessage(hl7Message, socket, equipmentId);
+            } else {
+                await handleHL7Message(hl7Message, socket, equipmentId);
+            }
+        } catch (err) {
+            console.error(`[Adapter ${equipmentId}] Error processing message:`, err);
         }
 
         buffer = buffer.subarray(endIndex + MLLP_END.length);
         startIndex = buffer.indexOf(MLLP_START);
         endIndex = buffer.indexOf(MLLP_END);
+      }
+      
+      if (buffer.length > 0) {
+          console.log(`[Adapter ${equipmentId}] ${buffer.length} bytes remaining in buffer (waiting for more data or delimiter)`);
       }
     });
 
