@@ -1,7 +1,7 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import { initDb, getDb } from './server/db';
-import { startAdapter, stopAdapter } from './server/hl7';
+import { startAdapter, stopAdapter } from './server/adapterManager';
 import cors from 'cors';
 
 const app = express();

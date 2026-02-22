@@ -1,35 +1,11 @@
 import net from 'net';
 import { getDb } from './db';
-import { MLLP_START, MLLP_END, parseHL7, generateACK } from './hl7-utils';
-import { startMindrayBS200Adapter } from './adapters/mindrayBS200Adapter';
-import { handleMedconnMessage } from './adapters/medconnAdapter';
+import { MLLP_START, MLLP_END, parseHL7, generateACK } from './hl7-utils-generic';
 
-export { MLLP_START, MLLP_END, parseHL7, generateACK };
-
-const activeAdapters = new Map<number, net.Server>();
-
-export function startAdapter(port: number, equipmentId: number, model: string) {
-  // Stop existing adapter if running
-  stopAdapter(equipmentId);
-
-  // Check for specific adapter
-  if (model && (model.toLowerCase().includes('bs-200') || model.toLowerCase().includes('bs200'))) {
-    console.log(`Starting Mindray BS-200 adapter for equipment ${equipmentId}`);
-    const server = startMindrayBS200Adapter(port, equipmentId);
-    activeAdapters.set(equipmentId, server);
-    return server;
-  }
-
+export function startGenericAdapter(port: number, equipmentId: number) {
   const server = net.createServer((socket) => {
-    const isMedconn = model && model.toLowerCase().includes('medconn');
-    
-    if (isMedconn) {
-        console.log(`[Medconn] Client connected to equipment ${equipmentId} (Port ${port})`);
-    } else {
-        console.log(`Client connected to adapter ${equipmentId} (Port ${port})`);
-    }
+    console.log(`Client connected to generic adapter ${equipmentId} (Port ${port})`);
 
-    // Update status to connected
     getDb().query('UPDATE equipments SET status = $1 WHERE id = $2', ['connected', equipmentId])
       .catch(err => console.error(`Failed to update status for equipment ${equipmentId}:`, err));
 
@@ -37,7 +13,6 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
 
     socket.on('data', async (data) => {
       console.log(`[Adapter ${equipmentId}] Received ${data.length} bytes. Hex: ${data.toString('hex')}`);
-      // Try to print as string to see if it's readable text
       console.log(`[Adapter ${equipmentId}] ASCII preview: ${data.toString('latin1').replace(/[\x00-\x1F\x7F]/g, '.')}`);
       
       buffer = Buffer.concat([buffer, data]);
@@ -45,61 +20,19 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
       let startIndex = buffer.indexOf(MLLP_START);
       let endIndex = buffer.indexOf(MLLP_END);
       
-      console.log(`[Adapter ${equipmentId}] Buffer state - Length: ${buffer.length}, StartIdx: ${startIndex}, EndIdx: ${endIndex}`);
-
       if (startIndex === -1 && buffer.length > 0) {
           console.warn(`[Adapter ${equipmentId}] WARNING: Data received but no MLLP Start Block (0x0B) found yet.`);
-          
-          // Fallback: Check for Raw HL7 (starts with MSH)
-          const mshIndex = buffer.indexOf('MSH');
-          if (mshIndex !== -1) {
-              console.log(`[Adapter ${equipmentId}] Detected potential Raw HL7 (starts with MSH) at index ${mshIndex}`);
-              // If we have MSH, assume it might be a raw message ending with \r (0x0D)
-              // But we need to be careful about partial packets.
-              // Let's look for the last 0x0D in the buffer.
-              const lastCR = buffer.lastIndexOf(0x0d);
-              
-              if (lastCR !== -1 && lastCR > mshIndex) {
-                  console.log(`[Adapter ${equipmentId}] Found CR at ${lastCR}, attempting to process as Raw HL7`);
-                  const payload = buffer.subarray(mshIndex, lastCR + 1);
-                  const encoding = (model && model.toLowerCase().includes('medconn')) ? 'utf8' : 'latin1';
-                  const hl7Message = payload.toString(encoding);
-                  
-                  console.log(`[Adapter ${equipmentId}] Processing Raw message:`, hl7Message.substring(0, 50) + '...');
-                  
-                  try {
-                    if (model && model.toLowerCase().includes('medconn')) {
-                        await handleMedconnMessage(hl7Message, socket, equipmentId, { isRaw: true });
-                    } else {
-                        await handleHL7Message(hl7Message, socket, equipmentId);
-                    }
-                  } catch (err) {
-                      console.error(`[Adapter ${equipmentId}] Error processing raw message:`, err);
-                  }
-                  
-                  // Advance buffer
-                  buffer = buffer.subarray(lastCR + 1);
-                  // Reset indices for next loop (though we might be done)
-                  startIndex = buffer.indexOf(MLLP_START);
-                  endIndex = buffer.indexOf(MLLP_END);
-              }
-          }
       }
 
       while (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
         const payload = buffer.subarray(startIndex + 1, endIndex);
-        // Use UTF-8 for Medconn as per spec, latin1 for others/default
-        const encoding = (model && model.toLowerCase().includes('medconn')) ? 'utf8' : 'latin1';
+        const encoding = 'latin1';
         const hl7Message = payload.toString(encoding);
         
         console.log(`[Adapter ${equipmentId}] Processing complete message (${encoding}, ${payload.length} bytes)`);
 
         try {
-            if (model && model.toLowerCase().includes('medconn')) {
-                await handleMedconnMessage(hl7Message, socket, equipmentId, { isRaw: false });
-            } else {
-                await handleHL7Message(hl7Message, socket, equipmentId);
-            }
+            await handleHL7Message(hl7Message, socket, equipmentId);
         } catch (err) {
             console.error(`[Adapter ${equipmentId}] Error processing message:`, err);
         }
@@ -108,20 +41,10 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
         startIndex = buffer.indexOf(MLLP_START);
         endIndex = buffer.indexOf(MLLP_END);
       }
-      
-      if (buffer.length > 0) {
-          console.log(`[Adapter ${equipmentId}] ${buffer.length} bytes remaining in buffer (waiting for more data or delimiter)`);
-      }
     });
 
     socket.on('close', () => {
-        if (isMedconn) {
-            console.log(`[Medconn] Client disconnected from equipment ${equipmentId}`);
-        } else {
-            console.log(`Client disconnected from adapter ${equipmentId}`);
-        }
-        
-        // Update status to disconnected
+        console.log(`Client disconnected from generic adapter ${equipmentId}`);
         getDb().query('UPDATE equipments SET status = $1 WHERE id = $2', ['disconnected', equipmentId])
           .catch(err => console.error(`Failed to update status for equipment ${equipmentId}:`, err));
     });
@@ -132,21 +55,10 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
   });
 
   server.listen(port, '0.0.0.0', () => {
-    console.log(`Adapter for equipment ${equipmentId} listening on port ${port}`);
+    console.log(`Generic Adapter for equipment ${equipmentId} listening on port ${port}`);
   });
   
-  activeAdapters.set(equipmentId, server);
   return server;
-}
-
-export function stopAdapter(equipmentId: number) {
-  const server = activeAdapters.get(equipmentId);
-  if (server) {
-    server.close(() => {
-      console.log(`Adapter for equipment ${equipmentId} stopped`);
-    });
-    activeAdapters.delete(equipmentId);
-  }
 }
 
 async function handleHL7Message(message: string, socket: net.Socket, equipmentId: number) {
@@ -159,10 +71,8 @@ async function handleHL7Message(message: string, socket: net.Socket, equipmentId
     
     if (!msh) return;
 
-    const isMedconn = msh[2]?.toLowerCase().includes('medconn');
     const messageType = msh[8]?.split('^')[0];
 
-    // Log the incoming message
     await db.query(
       'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
       [equipmentId, messageType || 'UNKNOWN', 'IN', message]
@@ -196,7 +106,6 @@ async function handleHL7Message(message: string, socket: net.Socket, equipmentId
             }
         }
 
-        // Check for duplicates
         const existing = await db.query(
           `SELECT id FROM results 
            WHERE equipment_id = $1 AND sample_barcode = $2 AND test_no = $3 AND result_time = $4`,
@@ -218,12 +127,10 @@ async function handleHL7Message(message: string, socket: net.Socket, equipmentId
         }
       }
 
-      // Send ACK
-      const ack = generateACK(msh, 'AA', '', isMedconn);
-      const ackBuffer = Buffer.concat([MLLP_START, Buffer.from(ack, isMedconn ? 'utf8' : 'latin1'), MLLP_END]);
+      const ack = generateACK(msh, 'AA');
+      const ackBuffer = Buffer.concat([MLLP_START, Buffer.from(ack, 'latin1'), MLLP_END]);
       socket.write(ackBuffer);
 
-      // Log the outgoing ACK
       await db.query(
         'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
         [equipmentId, 'ACK', 'OUT', ack]
@@ -231,6 +138,5 @@ async function handleHL7Message(message: string, socket: net.Socket, equipmentId
     }
   } catch (error) {
     console.error('Error handling HL7 message:', error);
-    // If DB is not configured, we just log and ignore
   }
 }
