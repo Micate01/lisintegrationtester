@@ -18,10 +18,18 @@ export default function Equipments() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newEquipment, setNewEquipment] = useState({
     name: '',
+    brand: '',
     model: '',
     ip_address: '',
     port: '',
   });
+
+  const brands = ['Mindray', 'Generic', 'Other'];
+  const modelsByBrand: { [key: string]: string[] } = {
+    'Mindray': ['Mindray BS-200', 'Mindray BS-220', 'Mindray BS-120', 'Mindray BS-130'],
+    'Generic': ['Generic HL7'],
+    'Other': ['Other']
+  };
 
   const fetchEquipments = async () => {
     try {
@@ -57,7 +65,7 @@ export default function Equipments() {
 
       if (res.ok) {
         setShowAddModal(false);
-        setNewEquipment({ name: '', model: '', ip_address: '', port: '' });
+        setNewEquipment({ name: '', brand: '', model: '', ip_address: '', port: '' });
         fetchEquipments();
       }
     } catch (error) {
@@ -162,20 +170,32 @@ export default function Equipments() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">Brand</label>
+                <select
+                  required
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white"
+                  value={newEquipment.brand}
+                  onChange={(e) => setNewEquipment({ ...newEquipment, brand: e.target.value, model: '' })}
+                >
+                  <option value="" disabled>Select a brand</option>
+                  {brands.map(brand => (
+                    <option key={brand} value={brand}>{brand}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">Model</label>
                 <select
                   required
                   className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 bg-white"
                   value={newEquipment.model}
                   onChange={(e) => setNewEquipment({ ...newEquipment, model: e.target.value })}
+                  disabled={!newEquipment.brand}
                 >
                   <option value="" disabled>Select a model</option>
-                  <option value="Mindray BS-200">Mindray BS-200</option>
-                  <option value="Mindray BS-220">Mindray BS-220</option>
-                  <option value="Mindray BS-120">Mindray BS-120</option>
-                  <option value="Mindray BS-130">Mindray BS-130</option>
-                  <option value="Generic HL7">Generic HL7</option>
-                  <option value="Other">Other</option>
+                  {newEquipment.brand && modelsByBrand[newEquipment.brand]?.map(model => (
+                    <option key={model} value={model}>{model}</option>
+                  ))}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
