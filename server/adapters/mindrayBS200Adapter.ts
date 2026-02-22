@@ -7,6 +7,9 @@ export function startMindrayBS200Adapter(port: number, equipmentId: number) {
   const server = net.createServer((socket) => {
     console.log(`[Mindray BS-200] Client connected to equipment ${equipmentId} (Port ${port})`);
 
+    // Keep connection alive
+    socket.setKeepAlive(true, 10000);
+
     // Update status to connected
     getDb().query('UPDATE equipments SET status = $1 WHERE id = $2', ['connected', equipmentId])
       .catch(err => console.error(`Failed to update status for equipment ${equipmentId}:`, err));
@@ -14,6 +17,7 @@ export function startMindrayBS200Adapter(port: number, equipmentId: number) {
     let buffer = Buffer.alloc(0);
 
     socket.on('data', async (data) => {
+      console.log(`[Mindray BS-200 Adapter ${equipmentId}] Received ${data.length} bytes.`);
       buffer = Buffer.concat([buffer, data]);
       
       let startIndex = buffer.indexOf(MLLP_START);
@@ -23,9 +27,13 @@ export function startMindrayBS200Adapter(port: number, equipmentId: number) {
         const payload = buffer.subarray(startIndex + 1, endIndex);
         const hl7Message = payload.toString('latin1');
         
-        await handleBS200Message(hl7Message, socket, equipmentId);
+        try {
+            await handleBS200Message(hl7Message, socket, equipmentId);
+        } catch (err) {
+            console.error(`[Mindray BS-200 Adapter ${equipmentId}] Error processing message:`, err);
+        }
 
-        buffer = buffer.subarray(endIndex + 2);
+        buffer = buffer.subarray(endIndex + MLLP_END.length);
         startIndex = buffer.indexOf(MLLP_START);
         endIndex = buffer.indexOf(MLLP_END);
       }

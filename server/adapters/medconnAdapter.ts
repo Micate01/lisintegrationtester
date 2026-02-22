@@ -7,6 +7,9 @@ export function startMedconnAdapter(port: number, equipmentId: number) {
   const server = net.createServer((socket) => {
     console.log(`[Medconn] Client connected to equipment ${equipmentId} (Port ${port})`);
 
+    // Keep connection alive
+    socket.setKeepAlive(true, 10000);
+
     // Update status to connected
     getDb().query('UPDATE equipments SET status = $1 WHERE id = $2', ['connected', equipmentId])
       .catch(err => console.error(`Failed to update status for equipment ${equipmentId}:`, err));
