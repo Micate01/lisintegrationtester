@@ -21,6 +21,18 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
   }
 
   const server = net.createServer((socket) => {
+    const isMedconn = model && model.toLowerCase().includes('medconn');
+    
+    if (isMedconn) {
+        console.log(`[Medconn] Client connected to equipment ${equipmentId} (Port ${port})`);
+    } else {
+        console.log(`Client connected to adapter ${equipmentId} (Port ${port})`);
+    }
+
+    // Update status to connected
+    getDb().query('UPDATE equipments SET status = $1 WHERE id = $2', ['connected', equipmentId])
+      .catch(err => console.error(`Failed to update status for equipment ${equipmentId}:`, err));
+
     let buffer = Buffer.alloc(0);
 
     socket.on('data', async (data) => {
@@ -43,6 +55,18 @@ export function startAdapter(port: number, equipmentId: number, model: string) {
         startIndex = buffer.indexOf(MLLP_START);
         endIndex = buffer.indexOf(MLLP_END);
       }
+    });
+
+    socket.on('close', () => {
+        if (isMedconn) {
+            console.log(`[Medconn] Client disconnected from equipment ${equipmentId}`);
+        } else {
+            console.log(`Client disconnected from adapter ${equipmentId}`);
+        }
+        
+        // Update status to disconnected
+        getDb().query('UPDATE equipments SET status = $1 WHERE id = $2', ['disconnected', equipmentId])
+          .catch(err => console.error(`Failed to update status for equipment ${equipmentId}:`, err));
     });
 
     socket.on('error', (err) => {
