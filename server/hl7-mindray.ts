@@ -70,24 +70,56 @@ export async function handleBS200Message(message: string, socket: net.Socket, eq
             }
         }
 
-        const existing = await db.query(
-          `SELECT id FROM results 
-           WHERE equipment_id = $1 AND sample_barcode = $2 AND test_no = $3 AND result_value = $4`,
-          [equipmentId, barcodeToUse, testNo, resultValue]
-        );
+        if (msh16 === '2') {
+            // QC Result
+            // For QC, barcodeToUse usually contains the QC lot or identifier
+            let qcLevel = 'Level 1';
+            const qcLot = barcodeToUse;
+            
+            if (qcLot.includes('L1') || qcLot.includes('1')) qcLevel = 'Level 1';
+            else if (qcLot.includes('L2') || qcLot.includes('2')) qcLevel = 'Level 2';
+            else if (qcLot.includes('L3') || qcLot.includes('3')) qcLevel = 'Level 3';
 
-        if (existing.rows.length === 0) {
-          await db.query(
-            `INSERT INTO results (equipment_id, sample_barcode, patient_name, test_no, test_name, result_value, result_unit, result_time)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-            [equipmentId, barcodeToUse, patientName, testNo, testName, resultValue, resultUnit, resultTime]
-          );
+            const existingQC = await db.query(
+                `SELECT id FROM qc_results 
+                 WHERE equipment_id = $1 AND qc_lot = $2 AND test_no = $3 AND result_value = $4`,
+                [equipmentId, qcLot, testNo, resultValue]
+            );
+
+            if (existingQC.rows.length === 0) {
+                await db.query(
+                    `INSERT INTO qc_results (equipment_id, qc_level, qc_lot, test_no, test_name, result_value, result_unit, result_time)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                    [equipmentId, qcLevel, qcLot, testNo, testName, resultValue, resultUnit, resultTime]
+                );
+            } else {
+                console.log(`Duplicate QC result skipped: ${qcLot} - ${testNo}`);
+                await db.query(
+                    'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
+                    [equipmentId, 'DUPLICATE', 'INFO', `Duplicate QC result skipped: ${qcLot} - ${testNo} (${testName})`]
+                );
+            }
         } else {
-          console.log(`Duplicate result skipped: ${barcodeToUse} - ${testNo}`);
-          await db.query(
-            'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
-            [equipmentId, 'DUPLICATE', 'INFO', `Duplicate result skipped: ${barcodeToUse} - ${testNo} (${testName})`]
-          );
+            // Standard Sample Result
+            const existing = await db.query(
+              `SELECT id FROM results 
+               WHERE equipment_id = $1 AND sample_barcode = $2 AND test_no = $3 AND result_value = $4`,
+              [equipmentId, barcodeToUse, testNo, resultValue]
+            );
+
+            if (existing.rows.length === 0) {
+              await db.query(
+                `INSERT INTO results (equipment_id, sample_barcode, patient_name, test_no, test_name, result_value, result_unit, result_time)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [equipmentId, barcodeToUse, patientName, testNo, testName, resultValue, resultUnit, resultTime]
+              );
+            } else {
+              console.log(`Duplicate result skipped: ${barcodeToUse} - ${testNo}`);
+              await db.query(
+                'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
+                [equipmentId, 'DUPLICATE', 'INFO', `Duplicate result skipped: ${barcodeToUse} - ${testNo} (${testName})`]
+              );
+            }
         }
       }
 
