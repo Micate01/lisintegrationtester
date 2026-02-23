@@ -101,26 +101,26 @@ export default function Results({ equipmentId }: { equipmentId?: number }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 h-full flex flex-col">
       {!equipmentId && (
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-zinc-900">Test Results</h2>
-          <div className="flex items-center space-x-4">
+        <div className="flex justify-between items-center bg-white p-2 border border-zinc-300 shadow-sm flex-shrink-0">
+          <h2 className="text-sm font-semibold text-zinc-800 uppercase tracking-wider ml-2">Test Results</h2>
+          <div className="flex items-center space-x-2">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-400 w-5 h-5" />
+              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-zinc-400 w-3.5 h-3.5" />
               <input
                 type="text"
                 placeholder="Search results..."
-                className="pl-10 pr-4 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 w-64"
+                className="pl-7 pr-2 py-1 text-xs border border-zinc-300 focus:outline-none focus:border-blue-500 w-48"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             <button
               onClick={handleClearResults}
-              className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg flex items-center transition-colors border border-red-200"
+              className="bg-red-50 text-red-700 border border-red-200 px-3 py-1 rounded flex items-center hover:bg-red-100 transition-colors text-xs font-medium"
             >
-              <Trash2 className="w-4 h-4 mr-2" />
+              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
               Clear Results
             </button>
           </div>
@@ -128,13 +128,13 @@ export default function Results({ equipmentId }: { equipmentId?: number }) {
       )}
 
       {equipmentId && (
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center bg-white p-2 border border-zinc-300 shadow-sm flex-shrink-0">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-400 w-5 h-5" />
+            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-zinc-400 w-3.5 h-3.5" />
             <input
               type="text"
               placeholder="Search results..."
-              className="pl-10 pr-4 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 w-64"
+              className="pl-7 pr-2 py-1 text-xs border border-zinc-300 focus:outline-none focus:border-blue-500 w-48"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -142,29 +142,29 @@ export default function Results({ equipmentId }: { equipmentId?: number }) {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-zinc-200">
-            <thead className="bg-zinc-50">
+      <div className="bg-white border border-zinc-300 shadow-sm flex-1 flex flex-col min-h-0">
+        <div className="flex-1 overflow-auto">
+          <table className="min-w-full divide-y divide-zinc-200 border-collapse">
+            <thead className="bg-[#f8f8f8] sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider w-10"></th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Time</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Barcode</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Patient</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Equipment</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Tests</th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-zinc-600 border-b border-zinc-300 border-r w-8"></th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-zinc-600 border-b border-zinc-300 border-r">Time</th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-zinc-600 border-b border-zinc-300 border-r">Barcode</th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-zinc-600 border-b border-zinc-300 border-r">Patient</th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-zinc-600 border-b border-zinc-300 border-r">Equipment</th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-zinc-600 border-b border-zinc-300">Tests</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-zinc-200">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-zinc-500">
+                  <td colSpan={6} className="px-3 py-4 text-center text-xs text-zinc-500">
                     Loading results...
                   </td>
                 </tr>
               ) : groupedResults.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-zinc-500">
+                  <td colSpan={6} className="px-3 py-4 text-center text-xs text-zinc-500">
                     No results found matching your search.
                   </td>
                 </tr>
@@ -178,50 +178,50 @@ export default function Results({ equipmentId }: { equipmentId?: number }) {
                     <>
                       <tr 
                         key={key} 
-                        className={`hover:bg-zinc-50 transition-colors cursor-pointer ${isExpanded ? 'bg-zinc-50' : ''}`}
+                        className={`hover:bg-blue-50 transition-colors cursor-pointer ${isExpanded ? 'bg-blue-50/50' : ''}`}
                         onClick={() => toggleGroup(key)}
                       >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
+                        <td className="px-3 py-1.5 whitespace-nowrap text-xs text-zinc-500 border-r border-zinc-200 text-center">
                           {hasBarcode ? (
-                            isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />
+                            isExpanded ? <ChevronDown className="w-3.5 h-3.5 inline-block" /> : <ChevronRight className="w-3.5 h-3.5 inline-block" />
                           ) : null}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
-                          {format(new Date(first.result_time || first.created_at), 'MMM d, HH:mm:ss')}
+                        <td className="px-3 py-1.5 whitespace-nowrap text-xs text-zinc-600 border-r border-zinc-200">
+                          {format(new Date(first.result_time || first.created_at), 'dd/MM/yyyy HH:mm:ss')}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 font-mono font-medium">
+                        <td className="px-3 py-1.5 whitespace-nowrap text-xs text-zinc-900 font-mono border-r border-zinc-200">
                           {first.sample_barcode || '-'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-900">
+                        <td className="px-3 py-1.5 whitespace-nowrap text-xs text-zinc-800 border-r border-zinc-200">
                           {first.patient_name || 'Unknown'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900">
+                        <td className="px-3 py-1.5 whitespace-nowrap text-xs text-zinc-800 border-r border-zinc-200">
                           {first.equipment_name || `Eq #${first.equipment_id}`}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
+                        <td className="px-3 py-1.5 whitespace-nowrap text-xs text-zinc-600">
                           {group.length} result{group.length !== 1 ? 's' : ''}
                         </td>
                       </tr>
                       {isExpanded && (
-                        <tr className="bg-zinc-50/50">
-                          <td colSpan={6} className="px-6 py-4">
-                            <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">
-                              <table className="min-w-full divide-y divide-zinc-200">
-                                <thead className="bg-zinc-50">
+                        <tr className="bg-zinc-50">
+                          <td colSpan={6} className="p-0 border-b border-zinc-300">
+                            <div className="pl-12 pr-4 py-2 bg-zinc-100/50 border-l-4 border-blue-400">
+                              <table className="min-w-full border border-zinc-300 bg-white">
+                                <thead className="bg-[#f0f0f0]">
                                   <tr>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase">Test</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase">Result</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase">Unit</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase">Time</th>
+                                    <th className="px-3 py-1.5 text-left text-[10px] font-semibold text-zinc-600 border-b border-zinc-300 border-r">Test</th>
+                                    <th className="px-3 py-1.5 text-left text-[10px] font-semibold text-zinc-600 border-b border-zinc-300 border-r">Result</th>
+                                    <th className="px-3 py-1.5 text-left text-[10px] font-semibold text-zinc-600 border-b border-zinc-300 border-r">Unit</th>
+                                    <th className="px-3 py-1.5 text-left text-[10px] font-semibold text-zinc-600 border-b border-zinc-300">Time</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-zinc-200">
                                   {group.map((result) => (
-                                    <tr key={result.id}>
-                                      <td className="px-4 py-2 text-sm text-zinc-900">{result.test_name || result.test_no}</td>
-                                      <td className="px-4 py-2 text-sm font-semibold text-zinc-900">{result.result_value}</td>
-                                      <td className="px-4 py-2 text-sm text-zinc-500">{result.result_unit}</td>
-                                      <td className="px-4 py-2 text-sm text-zinc-500">
+                                    <tr key={result.id} className="hover:bg-zinc-50">
+                                      <td className="px-3 py-1 text-[11px] text-zinc-800 border-r border-zinc-200">{result.test_name || result.test_no}</td>
+                                      <td className="px-3 py-1 text-[11px] font-medium text-zinc-900 border-r border-zinc-200">{result.result_value}</td>
+                                      <td className="px-3 py-1 text-[11px] text-zinc-600 border-r border-zinc-200">{result.result_unit}</td>
+                                      <td className="px-3 py-1 text-[11px] text-zinc-500">
                                         {format(new Date(result.result_time || result.created_at), 'HH:mm:ss')}
                                       </td>
                                     </tr>

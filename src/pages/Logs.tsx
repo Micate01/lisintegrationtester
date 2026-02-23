@@ -74,62 +74,62 @@ export default function Logs() {
   }, [logs]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-zinc-900">HL7 Communication Logs</h2>
+    <div className="space-y-4 h-full flex flex-col">
+      <div className="flex justify-between items-center bg-white p-2 border border-zinc-300 shadow-sm flex-shrink-0">
+        <h2 className="text-sm font-semibold text-zinc-800 uppercase tracking-wider ml-2">HL7 Communication Logs</h2>
         <button
           onClick={handleClearLogs}
-          className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg flex items-center transition-colors border border-red-200"
+          className="bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded flex items-center hover:bg-red-100 transition-colors text-xs font-medium"
         >
-          <Trash2 className="w-4 h-4 mr-2" />
+          <Trash2 className="w-4 h-4 mr-1.5" />
           Clear Logs
         </button>
       </div>
 
-      <div className="bg-zinc-900 rounded-xl border border-zinc-800 shadow-lg overflow-hidden">
-        <div className="px-6 py-4 border-b border-zinc-800 bg-zinc-950 flex items-center">
-          <Terminal className="w-5 h-5 text-zinc-400 mr-2" />
-          <span className="text-zinc-400 font-mono text-sm">Live Feed</span>
+      <div className="bg-zinc-900 border border-zinc-800 shadow-sm flex-1 flex flex-col min-h-0">
+        <div className="px-4 py-2 border-b border-zinc-800 bg-zinc-950 flex items-center flex-shrink-0">
+          <Terminal className="w-4 h-4 text-zinc-400 mr-2" />
+          <span className="text-zinc-400 font-mono text-xs">Live Feed</span>
         </div>
-        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-          <table className="min-w-full divide-y divide-zinc-800">
-            <thead className="bg-zinc-900 sticky top-0">
+        <div className="flex-1 overflow-auto">
+          <table className="min-w-full divide-y divide-zinc-800 border-collapse">
+            <thead className="bg-zinc-900 sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Time</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Equipment</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Dir</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider w-full">Message</th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-zinc-800 border-r">Time</th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-zinc-800 border-r">Equipment</th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-zinc-800 border-r">Dir</th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-zinc-800 border-r">Type</th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-zinc-800 w-full">Message</th>
               </tr>
             </thead>
-            <tbody className="bg-zinc-900 divide-y divide-zinc-800 font-mono text-sm">
+            <tbody className="bg-zinc-900 divide-y divide-zinc-800 font-mono text-[11px]">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-zinc-500">
+                  <td colSpan={5} className="px-3 py-4 text-center text-zinc-500">
                     Loading logs...
                   </td>
                 </tr>
               ) : groupedLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-zinc-500">
+                  <td colSpan={5} className="px-3 py-4 text-center text-zinc-500">
                     No logs recorded yet.
                   </td>
                 </tr>
               ) : (
                 groupedLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-zinc-800/50 transition-colors group">
-                    <td className="px-6 py-3 whitespace-nowrap text-zinc-500">
+                    <td className="px-3 py-1.5 whitespace-nowrap text-zinc-500 border-r border-zinc-800">
                       {format(new Date(log.created_at), 'HH:mm:ss.SSS')}
                       {log.count > 1 && (
-                        <span className="ml-2 px-1.5 py-0.5 rounded-full bg-zinc-700 text-zinc-300 text-xs">
+                        <span className="ml-2 px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-300 text-[10px]">
                           x{log.count}
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-3 whitespace-nowrap text-zinc-300">
+                    <td className="px-3 py-1.5 whitespace-nowrap text-zinc-300 border-r border-zinc-800">
                       {log.equipment_name || `Eq #${log.equipment_id}`}
                     </td>
-                    <td className="px-6 py-3 whitespace-nowrap">
+                    <td className="px-3 py-1.5 whitespace-nowrap border-r border-zinc-800">
                       {log.direction === 'IN' ? (
                         <span className="flex items-center text-emerald-400">
                           <ArrowDown className="w-3 h-3 mr-1" /> IN
@@ -140,13 +140,13 @@ export default function Logs() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-3 whitespace-nowrap">
-                      <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 text-xs border border-zinc-700">
+                    <td className="px-3 py-1.5 whitespace-nowrap border-r border-zinc-800">
+                      <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 text-[10px] border border-zinc-700">
                         {log.message_type}
                       </span>
                     </td>
-                    <td className="px-6 py-3 text-zinc-400 break-all">
-                      <div className="max-w-2xl truncate group-hover:whitespace-normal group-hover:overflow-visible">
+                    <td className="px-3 py-1.5 text-zinc-400 break-all">
+                      <div className="max-w-3xl truncate group-hover:whitespace-normal group-hover:overflow-visible">
                         {log.raw_message.replace(/\r/g, '↵ ')}
                       </div>
                     </td>

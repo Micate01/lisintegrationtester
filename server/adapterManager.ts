@@ -1,4 +1,4 @@
-import { startGenericAdapter, stopGenericAdapter } from './hl7-generic';
+import { startGenericAdapter } from './hl7-generic';
 import { startMindrayBS200Adapter } from './adapters/mindrayBS200Adapter';
 import { startMedconnAdapter } from './adapters/medconnAdapter';
 

@@ -5,6 +5,7 @@ import Equipments from './pages/Equipments';
 import EquipmentDetails from './pages/EquipmentDetails';
 import Results from './pages/Results';
 import Worklist from './pages/Worklist';
+import Validation from './pages/Validation';
 import Logs from './pages/Logs';
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="equipments/:id" element={<EquipmentDetails />} />
           <Route path="results" element={<Results />} />
           <Route path="worklist" element={<Worklist />} />
+          <Route path="validation" element={<Validation />} />
           <Route path="logs" element={<Logs />} />
         </Route>
       </Routes>
