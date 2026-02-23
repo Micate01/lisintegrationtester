@@ -32,6 +32,7 @@ export async function handleBS200Message(message: string, socket: net.Socket, eq
     const triggerEvent = messageTypeField.split('^')[1]; 
     
     const messageControlId = msh[typeIndex + 1] || '';
+    const msh16 = msh[15] || '0';
 
     await db.query(
       'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
@@ -114,7 +115,7 @@ export async function handleBS200Message(message: string, socket: net.Socket, eq
         const sendingFac = msh[3] || '';
         
         // QCK^Q02 Response
-        const qckMsh = `MSH|^~\\&|||${sendingApp}|${sendingFac}|${date}||QCK^Q02|${messageControlId}|P|2.3.1||||0||ASCII|||`;
+        const qckMsh = `MSH|^~\\&|||${sendingApp}|${sendingFac}|${date}||QCK^Q02|${messageControlId}|P|2.3.1||||${msh16}||ASCII|||`;
         const msa = `MSA|AA|${messageControlId}|Message accepted|||0|`;
         const err = `ERR|0|`;
         const qakStatus = order ? 'OK' : 'NF';
@@ -132,7 +133,7 @@ export async function handleBS200Message(message: string, socket: net.Socket, eq
         // If order found, send DSR^Q03
         if (order) {
             const dsrControlId = Date.now().toString().slice(-10);
-            const dsrMsh = `MSH|^~\\&|||${sendingApp}|${sendingFac}|${date}||DSR^Q03|${dsrControlId}|P|2.3.1||||0||ASCII|||`;
+            const dsrMsh = `MSH|^~\\&|||${sendingApp}|${sendingFac}|${date}||DSR^Q03|${dsrControlId}|P|2.3.1||||${msh16}||ASCII|||`;
             const dsrMsa = `MSA|AA|${messageControlId}|Message accepted|||0|`;
             const dsrErr = `ERR|0|`;
             const dsrQak = `QAK|SR|OK|`;
@@ -143,15 +144,23 @@ export async function handleBS200Message(message: string, socket: net.Socket, eq
             const name = order.patient_name || '';
             const sex = order.sex || 'M';
             const age = order.age || '';
-            const birthDate = ''; // Optional
-            const sampleTime = date; // Fallback to current time
+            const admissionNumber = order.admission_number || pid;
+            const bedNumber = order.bed_number || '';
+            const birthDate = order.birth_date || '';
+            const bloodType = order.blood_type || '';
+            const orderSampleId = order.sample_id || '';
+            const sampleTime = order.sample_time || date;
+            const statFlag = order.stat_flag || 'N';
+            const sampleType = order.sample_type || '';
+            const fetchDoctor = order.fetch_doctor || '';
+            const fetchDepartment = order.fetch_department || '';
             
-            const dsp1 = `DSP|1||${pid}|||`; // Patient ID/Admission No
-            const dsp2 = `DSP|2|||||`; // Bed No
+            const dsp1 = `DSP|1||${admissionNumber}|||`; // Patient ID/Admission No
+            const dsp2 = `DSP|2||${bedNumber}|||`; // Bed No
             const dsp3 = `DSP|3||${name}|||`; // Patient Name
             const dsp4 = `DSP|4||${birthDate}|||`; // Birth Date
             const dsp5 = `DSP|5||${sex}|||`; // Sex
-            const dsp6 = `DSP|6|||||`; // Blood Type
+            const dsp6 = `DSP|6||${bloodType}|||`; // Blood Type
             const dsp7 = `DSP|7|||||`; // Patient Type
             const dsp8 = `DSP|8|||||`; // Address
             const dsp9 = `DSP|9|||||`; // Zip Code
@@ -167,23 +176,29 @@ export async function handleBS200Message(message: string, socket: net.Socket, eq
             const dsp19 = `DSP|19|||||`; // Doctor
             const dsp20 = `DSP|20|||||`; // Sender
             const dsp21 = `DSP|21||${sampleId}|||`; // Bar Code
-            const dsp22 = `DSP|22|||||`; // Sample ID (Analyzer specific)
+            const dsp22 = `DSP|22||${orderSampleId}|||`; // Sample ID (Analyzer specific)
             const dsp23 = `DSP|23||${sampleTime}|||`; // Sample Time
-            const dsp24 = `DSP|24||N|||`; // STAT
+            const dsp24 = `DSP|24||${statFlag}|||`; // STAT
             const dsp25 = `DSP|25|||||`; // Sample Status
-            const dsp26 = `DSP|26|||||`; // Sample Type
-            const dsp27 = `DSP|27|||||`; // Fetch Doctor
-            const dsp28 = `DSP|28|||||`; // Fetch Department
+            const dsp26 = `DSP|26||${sampleType}|||`; // Sample Type
+            const dsp27 = `DSP|27||${fetchDoctor}|||`; // Fetch Doctor
+            const dsp28 = `DSP|28||${fetchDepartment}|||`; // Fetch Department
             
             const dspBase = [dsp1, dsp2, dsp3, dsp4, dsp5, dsp6, dsp7, dsp8, dsp9, dsp10, dsp11, dsp12, dsp13, dsp14, dsp15, dsp16, dsp17, dsp18, dsp19, dsp20, dsp21, dsp22, dsp23, dsp24, dsp25, dsp26, dsp27, dsp28].join('\r') + '\r';
             
             // Assuming test_names is a comma-separated list of tests
+            // Format can be "TestName" or "TestName|Unit|NormalRange"
             const tests = (order.test_names || '').split(',').map(t => t.trim()).filter(t => t);
             let dspTests = '';
             for (let i = 0; i < tests.length; i++) {
+                const testParts = tests[i].split('|');
+                const tName = testParts[0] || '';
+                const tUnit = testParts[1] || '';
+                const tRange = testParts[2] || '';
+                
                 // Format: DSP|sequence||Test Number^Test Name^Unit^Normal Range|||
                 // Using index + 29 for sequence number
-                dspTests += `DSP|${i + 29}||${i + 1}^${tests[i]}^^^|||\r`;
+                dspTests += `DSP|${i + 29}||${i + 1}^${tName}^${tUnit}^${tRange}|||\r`;
             }
             
             const dsc = `DSC||\r`;

@@ -136,6 +136,16 @@ export async function initDb() {
         age VARCHAR(50),
         sex VARCHAR(10),
         test_names TEXT,
+        admission_number VARCHAR(255),
+        bed_number VARCHAR(50),
+        birth_date VARCHAR(50),
+        blood_type VARCHAR(10),
+        sample_id VARCHAR(255),
+        sample_time VARCHAR(50),
+        stat_flag VARCHAR(10),
+        sample_type VARCHAR(50),
+        fetch_doctor VARCHAR(255),
+        fetch_department VARCHAR(255),
         status VARCHAR(50) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );

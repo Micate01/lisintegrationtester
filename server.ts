@@ -130,11 +130,24 @@ app.post('/api/worklist', async (req, res) => {
   console.log('POST /api/worklist', req.body);
   try {
     const db = getDb();
-    const { sample_barcode, patient_id, patient_name, age, sex, test_names } = req.body;
+    const { 
+      sample_barcode, patient_id, patient_name, age, sex, test_names,
+      admission_number, bed_number, birth_date, blood_type, sample_id,
+      sample_time, stat_flag, sample_type, fetch_doctor, fetch_department
+    } = req.body;
+    
     await db.query(
-      `INSERT INTO worklist (sample_barcode, patient_id, patient_name, age, sex, test_names)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [sample_barcode, patient_id, patient_name, age, sex, test_names]
+      `INSERT INTO worklist (
+        sample_barcode, patient_id, patient_name, age, sex, test_names,
+        admission_number, bed_number, birth_date, blood_type, sample_id,
+        sample_time, stat_flag, sample_type, fetch_doctor, fetch_department
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+      [
+        sample_barcode, patient_id, patient_name, age, sex, test_names,
+        admission_number, bed_number, birth_date, blood_type, sample_id,
+        sample_time, stat_flag, sample_type, fetch_doctor, fetch_department
+      ]
     );
     res.json({ message: 'Order added successfully' });
   } catch (error) {
