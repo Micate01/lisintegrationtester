@@ -106,22 +106,22 @@ export default function Equipments() {
       {loading ? (
         <div className="text-center py-12">Loading...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {equipments.map((eq) => (
-            <div key={eq.id} className="bg-white rounded-xl border border-zinc-200 p-6 shadow-sm hover:shadow-md transition-shadow relative group">
+            <div key={eq.id} className="bg-white rounded-lg border border-zinc-200 p-4 shadow-sm hover:shadow-md transition-shadow relative group">
               <button
                 onClick={() => handleDeleteEquipment(eq.id)}
-                className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                className="absolute top-2 right-2 p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors opacity-0 group-hover:opacity-100"
                 title="Delete Equipment"
               >
-                <Trash2 className="w-5 h-5" />
+                <Trash2 className="w-4 h-4" />
               </button>
               
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-3 bg-zinc-100 rounded-lg">
-                  <Server className="w-6 h-6 text-zinc-600" />
+              <div className="flex justify-between items-start mb-3">
+                <div className="p-2 bg-zinc-100 rounded-md">
+                  <Server className="w-5 h-5 text-zinc-600" />
                 </div>
-                <div className={`flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                <div className={`flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider ${
                   eq.status === 'connected' ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-100 text-zinc-800'
                 }`}>
                   {eq.status === 'connected' ? (
@@ -133,19 +133,19 @@ export default function Equipments() {
                 </div>
               </div>
               
-              <h3 className="text-lg font-semibold text-zinc-900 mb-1 pr-8">{eq.name}</h3>
-              <p className="text-sm text-zinc-500 mb-4">{eq.model}</p>
+              <h3 className="text-base font-semibold text-zinc-900 mb-0.5 pr-6 truncate" title={eq.name}>{eq.name}</h3>
+              <p className="text-xs text-zinc-500 mb-3 truncate" title={eq.model}>{eq.model}</p>
               
-              <div className="space-y-2 border-t border-zinc-100 pt-4">
-                <div className="flex justify-between text-sm">
+              <div className="space-y-1.5 border-t border-zinc-100 pt-3">
+                <div className="flex justify-between text-xs">
                   <span className="text-zinc-500">IP Address</span>
                   <span className="font-mono text-zinc-900">{eq.ip_address || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs">
                   <span className="text-zinc-500">Port</span>
                   <span className="font-mono text-zinc-900">{eq.port}</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs">
                   <span className="text-zinc-500">Added</span>
                   <span className="text-zinc-900">{format(new Date(eq.created_at), 'MMM d, yyyy')}</span>
                 </div>
