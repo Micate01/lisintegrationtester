@@ -72,13 +72,22 @@ export async function handleBS200Message(message: string, socket: net.Socket, eq
 
         if (msh16 === '2') {
             // QC Result
-            // For QC, barcodeToUse usually contains the QC lot or identifier
-            let qcLevel = 'Level 1';
-            const qcLot = barcodeToUse;
+            // Spec Page 27, 31: QC Level is in OBR-17 (H/M/L)
+            // QC Lot No is in OBR-14 (Specimen Received Date/Time)
+            const qcLevelCode = obr ? (obr[17] || '') : '';
+            const qcLot = (obr && obr[14]) ? obr[14] : barcodeToUse;
             
-            if (qcLot.includes('L1') || qcLot.includes('1')) qcLevel = 'Level 1';
-            else if (qcLot.includes('L2') || qcLot.includes('2')) qcLevel = 'Level 2';
-            else if (qcLot.includes('L3') || qcLot.includes('3')) qcLevel = 'Level 3';
+            let qcLevel = 'Unknown';
+            if (qcLevelCode === 'H') qcLevel = 'High';
+            else if (qcLevelCode === 'M') qcLevel = 'Medium';
+            else if (qcLevelCode === 'L') qcLevel = 'Low';
+            else {
+                // Fallback to lot parsing if OBR-17 is empty/invalid
+                if (qcLot.includes('L1') || qcLot.includes('1')) qcLevel = 'Level 1';
+                else if (qcLot.includes('L2') || qcLot.includes('2')) qcLevel = 'Level 2';
+                else if (qcLot.includes('L3') || qcLot.includes('3')) qcLevel = 'Level 3';
+                else qcLevel = 'Level 1';
+            }
 
             const existingQC = await db.query(
                 `SELECT id FROM qc_results 
