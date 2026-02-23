@@ -8,10 +8,6 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export default function Layout() {
-  const topMenu = [
-    'Request', 'Technical Management', 'Administrative Management', 'Billing', 'Data Inquiry', 'Statistics', 'Other Functions', 'System Configuration', 'Close'
-  ];
-
   const navigation = [
     { name: 'Dashboard', href: '/', icon: Activity },
     { name: 'Equipments', href: '/equipments', icon: Server },
@@ -23,15 +19,6 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-[#f0f0f0] flex flex-col font-sans text-sm">
-      {/* Top Menu Bar */}
-      <div className="bg-[#f0f0f0] border-b border-zinc-300 flex items-center px-2 py-1 text-xs text-zinc-800 space-x-4">
-        {topMenu.map((item) => (
-          <button key={item} className="hover:bg-zinc-200 px-2 py-1 rounded cursor-default">
-            {item}
-          </button>
-        ))}
-      </div>
-
       {/* Toolbar */}
       <div className="bg-white border-b border-zinc-300 px-2 py-1 flex items-center space-x-1 shadow-sm">
         {navigation.map((item) => (
