@@ -25,22 +25,9 @@ export async function handleMedconnMessage(message: string, socket: net.Socket, 
         return;
     }
 
-    let messageTypeField = msh[8] || ''; 
-    
-    if (!messageTypeField.includes('^') && !['ORU', 'QRY'].includes(messageTypeField)) {
-        const candidate = msh[7] || '';
-        if (candidate.includes('^') || ['ORU', 'QRY'].includes(candidate)) {
-            console.log(`[MedconnAdapter] Detected shifted Message Type at Index 7: ${candidate}`);
-            messageTypeField = candidate;
-        }
-    }
-
+    const messageTypeField = msh[8] || ''; 
     const [messageType, triggerEvent] = messageTypeField.split('^');
-    
-    let messageControlId = msh[9] || ''; 
-    if (messageTypeField === msh[7]) {
-         messageControlId = msh[8] || '';
-    }
+    const messageControlId = msh[9] || ''; 
     
     console.log(`[MedconnAdapter] Message Type: ${messageType}, Control ID: ${messageControlId}`);
 
@@ -169,14 +156,30 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
     const order = rows[0];
 
     const date = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-    const resMsh = `MSH|^~\\&|Medconn|MH|||${date}||DSR^Q03|${messageControlId}|P|2.4||||||UNICODE||||`;
+    const deviceId = msh[3] || 'MH';
+    
+    const resMshFields = new Array(21).fill('');
+    resMshFields[0] = 'MSH';
+    resMshFields[1] = '^~\\&';
+    resMshFields[2] = 'Medconn';
+    resMshFields[3] = deviceId;
+    resMshFields[4] = '';
+    resMshFields[5] = deviceId;
+    resMshFields[6] = date;
+    resMshFields[8] = 'DSR^Q03';
+    resMshFields[9] = messageControlId;
+    resMshFields[10] = 'P';
+    resMshFields[11] = '2.4';
+    resMshFields[15] = '0';
+    resMshFields[17] = 'UNICODE';
+    const resMsh = resMshFields.join('|');
     
     let msa = '';
     let dspSegments = '';
 
     if (order) {
         console.log('[MedconnAdapter] Order found, building DSP segments');
-        msa = `MSA|AA|${messageControlId}||||0|`;
+        msa = `MSA|AA|${messageControlId}|||0|`;
         
         const testMode = order.test_names || 'CBC+DIFF';
         const pid = order.patient_id || '';
@@ -207,7 +210,7 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
         
     } else {
         console.log('[MedconnAdapter] Order not found, sending MSA|AE');
-        msa = `MSA|AE|${messageControlId}||||204|`;
+        msa = `MSA|AE|${messageControlId}|||204|`;
     }
 
     const response = `${resMsh}\r${msa}\r${dspSegments ? dspSegments + '\r' : ''}`;
@@ -227,8 +230,25 @@ async function handleQuery(segments: string[][], db: any, equipmentId: number, m
 
 async function sendACK(socket: net.Socket, msh: string[], messageControlId: string, code: string, isRaw: boolean = false, db: any, equipmentId: number) {
     const date = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-    const ackMsh = `MSH|^~\\&|Medconn|MH|||${date}||ACK^R01|${messageControlId}|P|2.4||||||UNICODE||||`;
-    const msa = `MSA|${code}|${messageControlId}||||0|`;
+    const deviceId = msh[3] || 'MH';
+    
+    const ackMshFields = new Array(21).fill('');
+    ackMshFields[0] = 'MSH';
+    ackMshFields[1] = '^~\\&';
+    ackMshFields[2] = 'Medconn';
+    ackMshFields[3] = deviceId;
+    ackMshFields[4] = '';
+    ackMshFields[5] = deviceId;
+    ackMshFields[6] = date;
+    ackMshFields[8] = 'ACK^R01';
+    ackMshFields[9] = messageControlId;
+    ackMshFields[10] = 'P';
+    ackMshFields[11] = '2.4';
+    ackMshFields[15] = '0';
+    ackMshFields[17] = 'UNICODE';
+    const ackMsh = ackMshFields.join('|');
+    
+    const msa = `MSA|${code}|${messageControlId}|||0|`;
     const response = `${ackMsh}\r${msa}\r`;
     
     const ackBuffer = isRaw 

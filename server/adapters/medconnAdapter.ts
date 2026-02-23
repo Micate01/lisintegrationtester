@@ -31,6 +31,9 @@ export function startMedconnAdapter(port: number, equipmentId: number) {
           console.warn(`[Adapter ${equipmentId}] WARNING: Data received but no MLLP Start Block (0x0B) found yet.`);
           
           // Fallback: Check for Raw HL7 (starts with MSH)
+          // NOTE: This raw mode violates the Medconn HL7 protocol documentation (Section 1.2, Page 4),
+          // which strictly requires MLLP framing (<SB> ... <EB><CR>).
+          // This fallback is maintained ONLY as a non-standard workaround for non-compliant senders.
           const mshIndex = buffer.indexOf('MSH');
           if (mshIndex !== -1) {
               console.log(`[Adapter ${equipmentId}] Detected potential Raw HL7 (starts with MSH) at index ${mshIndex}`);
