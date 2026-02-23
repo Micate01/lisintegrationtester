@@ -16,7 +16,7 @@ interface Result {
   created_at: string;
 }
 
-export default function Results() {
+export default function Results({ equipmentId }: { equipmentId?: number }) {
   const [results, setResults] = useState<Result[]>([]);
   const [filteredResults, setFilteredResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,15 +28,9 @@ export default function Results() {
       const res = await fetch('/api/results');
       if (res.ok) {
         const data = await res.json();
-        setResults(data);
-        // Don't overwrite filteredResults here to avoid resetting search/filter while typing
-        // But we need to update it if it's the first load or if we want real-time updates
-        // For now, let's just update it.
-        setFilteredResults(prev => {
-           // If we want to keep the filter active, we should re-apply it.
-           // But simpler to just let the next useEffect handle it if we depend on `results`
-           return data;
-        });
+        const filteredData = equipmentId ? data.filter((r: Result) => r.equipment_id === equipmentId) : data;
+        setResults(filteredData);
+        setFilteredResults(filteredData);
       }
     } catch (error) {
       console.error('Failed to fetch results', error);
@@ -108,9 +102,33 @@ export default function Results() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-zinc-900">Test Results</h2>
-        <div className="flex items-center space-x-4">
+      {!equipmentId && (
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-zinc-900">Test Results</h2>
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search results..."
+                className="pl-10 pr-4 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-500 w-64"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={handleClearResults}
+              className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg flex items-center transition-colors border border-red-200"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Clear Results
+            </button>
+          </div>
+        </div>
+      )}
+
+      {equipmentId && (
+        <div className="flex justify-between items-center">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-400 w-5 h-5" />
             <input
@@ -121,15 +139,8 @@ export default function Results() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button
-            onClick={handleClearResults}
-            className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg flex items-center transition-colors border border-red-200"
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Clear Results
-          </button>
         </div>
-      </div>
+      )}
 
       <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">

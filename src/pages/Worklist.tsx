@@ -14,7 +14,7 @@ interface WorklistOrder {
   created_at: string;
 }
 
-export default function Worklist() {
+export default function Worklist({ equipmentId }: { equipmentId?: number }) {
   const [orders, setOrders] = useState<WorklistOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -85,16 +85,18 @@ export default function Worklist() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-zinc-900">Worklist Orders</h2>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="bg-zinc-900 text-white px-4 py-2 rounded-lg flex items-center hover:bg-zinc-800 transition-colors"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Add Order
-        </button>
-      </div>
+      {!equipmentId && (
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-zinc-900">Worklist Orders</h2>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-zinc-900 text-white px-4 py-2 rounded-lg flex items-center hover:bg-zinc-800 transition-colors"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Add Order
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">

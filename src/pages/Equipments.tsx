@@ -1,6 +1,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { Plus, Server, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 interface Equipment {
   id: number;
@@ -13,6 +14,7 @@ interface Equipment {
 }
 
 export default function Equipments() {
+  const navigate = useNavigate();
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -108,9 +110,16 @@ export default function Equipments() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {equipments.map((eq) => (
-            <div key={eq.id} className="bg-white rounded-lg border border-zinc-200 p-4 shadow-sm hover:shadow-md transition-shadow relative group">
+            <div 
+              key={eq.id} 
+              className="bg-white rounded-lg border border-zinc-200 p-4 shadow-sm hover:shadow-md transition-shadow relative group cursor-pointer"
+              onClick={() => navigate(`/equipments/${eq.id}`)}
+            >
               <button
-                onClick={() => handleDeleteEquipment(eq.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteEquipment(eq.id);
+                }}
                 className="absolute top-2 right-2 p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors opacity-0 group-hover:opacity-100"
                 title="Delete Equipment"
               >
