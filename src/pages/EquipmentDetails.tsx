@@ -19,7 +19,7 @@ export default function EquipmentDetails() {
   const navigate = useNavigate();
   const [equipment, setEquipment] = useState<Equipment | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'worklist' | 'results' | 'qc'>('worklist');
+  const [activeTab, setActiveTab] = useState<'worklist' | 'results' | 'qc'>('results');
 
   useEffect(() => {
     const fetchEquipment = async () => {
@@ -85,16 +85,6 @@ export default function EquipmentDetails() {
 
       <div className="bg-[#f0f0f0] border-b border-zinc-300 px-2 flex space-x-1 flex-shrink-0">
         <button
-          onClick={() => setActiveTab('worklist')}
-          className={`px-3 py-1.5 text-xs font-medium border-t border-l border-r rounded-t-sm ${
-            activeTab === 'worklist'
-              ? 'bg-white border-zinc-300 text-zinc-900 -mb-px z-10 relative'
-              : 'bg-transparent border-transparent text-zinc-600 hover:bg-zinc-200'
-          }`}
-        >
-          Worklist Orders
-        </button>
-        <button
           onClick={() => setActiveTab('results')}
           className={`px-3 py-1.5 text-xs font-medium border-t border-l border-r rounded-t-sm ${
             activeTab === 'results'
@@ -103,6 +93,16 @@ export default function EquipmentDetails() {
           }`}
         >
           Results
+        </button>
+        <button
+          onClick={() => setActiveTab('worklist')}
+          className={`px-3 py-1.5 text-xs font-medium border-t border-l border-r rounded-t-sm ${
+            activeTab === 'worklist'
+              ? 'bg-white border-zinc-300 text-zinc-900 -mb-px z-10 relative'
+              : 'bg-transparent border-transparent text-zinc-600 hover:bg-zinc-200'
+          }`}
+        >
+          Worklist Orders
         </button>
         <button
           onClick={() => setActiveTab('qc')}
@@ -117,8 +117,8 @@ export default function EquipmentDetails() {
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 bg-white border border-zinc-300 -mt-4 relative z-0">
-        {activeTab === 'worklist' && <Worklist equipmentId={equipment.id} />}
         {activeTab === 'results' && <Results equipmentId={equipment.id} />}
+        {activeTab === 'worklist' && <Worklist equipmentId={equipment.id} />}
         {activeTab === 'qc' && (
           <div className="flex-1 flex items-center justify-center text-xs text-zinc-500">
             QC functionality coming soon
