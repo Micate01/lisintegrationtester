@@ -99,22 +99,92 @@ export async function handleBS200Message(message: string, socket: net.Socket, eq
         [equipmentId, 'ACK^R01', 'OUT', ack]
       );
     } else if (messageType === 'QRY' && triggerEvent === 'Q02') {
+        const qrd = segments.find(s => s[0] === 'QRD');
+        const sampleId = qrd ? (qrd[8] || '') : '';
+        
+        console.log(`[MindrayAdapter] Query for Sample ID: ${sampleId}`);
+
+        const { rows } = await db.query('SELECT * FROM worklist WHERE sample_barcode = $1 LIMIT 1', [sampleId]);
+        const order = rows[0];
+
         const date = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-        const qckMsh = `MSH|^~\\&|LIS|LIS|||${date}||QCK^Q02|1|P|2.3.1||||0||ASCII|||`;
+        const sendingApp = msh[2] || '';
+        const sendingFac = msh[3] || '';
+        
+        // QCK^Q02 Response
+        const qckMsh = `MSH|^~\\&|||${sendingApp}|${sendingFac}|${date}||QCK^Q02|${messageControlId}|P|2.3.1||||0||ASCII|||`;
         const msa = `MSA|AA|${messageControlId}|Message accepted|||0|`;
         const err = `ERR|0|`;
-        const qak = `QAK|SR|NF|`;
+        const qakStatus = order ? 'OK' : 'NF';
+        const qak = `QAK|SR|${qakStatus}|`;
         
-        const response = `${qckMsh}\r${msa}\r${err}\r${qak}\r`;
-        const respBuffer = Buffer.concat([MLLP_START, Buffer.from(response, 'latin1'), MLLP_END]);
-        socket.write(respBuffer);
+        const qckResponse = `${qckMsh}\r${msa}\r${err}\r${qak}\r`;
+        const qckBuffer = Buffer.concat([MLLP_START, Buffer.from(qckResponse, 'latin1'), MLLP_END]);
+        socket.write(qckBuffer);
         
         await db.query(
             'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
-            [equipmentId, 'QCK^Q02', 'OUT', response]
+            [equipmentId, 'QCK^Q02', 'OUT', qckResponse]
         );
+
+        // If order found, send DSR^Q03
+        if (order) {
+            const dsrControlId = Date.now().toString().slice(-10);
+            const dsrMsh = `MSH|^~\\&|||${sendingApp}|${sendingFac}|${date}||DSR^Q03|${dsrControlId}|P|2.3.1||||0||ASCII|||`;
+            const dsrMsa = `MSA|AA|${messageControlId}|Message accepted|||0|`;
+            const dsrErr = `ERR|0|`;
+            const dsrQak = `QAK|SR|OK|`;
+            const dsrQrd = `QRD|${date}|R|I|${messageControlId}|||1^RD|${sampleId}|OTH|||T|`;
+            const dsrQrf = `QRF|BS-200||||0|`;
+            
+            const pid = order.patient_id || '';
+            const name = order.patient_name || '';
+            const sex = order.sex || 'M';
+            const age = order.age || '';
+            
+            const dsp1 = `DSP|1||${sampleId}|||`;
+            const dsp2 = `DSP|2|||||`;
+            const dsp3 = `DSP|3||${pid}^${name}^${sex}^${age}^^^^^^^|||`;
+            
+            // Assuming test_names is a comma-separated list of tests
+            const tests = (order.test_names || '').split(',').map(t => t.trim()).filter(t => t);
+            let dspTests = '';
+            for (let i = 0; i < tests.length; i++) {
+                // Format: DSP|sequence||test_no^^^test_name^^^|||
+                // Using index + 4 for sequence number
+                dspTests += `DSP|${i + 4}||${i + 1}^^^${tests[i]}^^^|||\r`;
+            }
+            
+            const dsrResponse = `${dsrMsh}\r${dsrMsa}\r${dsrErr}\r${dsrQak}\r${dsrQrd}\r${dsrQrf}\r${dsp1}\r${dsp2}\r${dsp3}\r${dspTests}`;
+            const dsrBuffer = Buffer.concat([MLLP_START, Buffer.from(dsrResponse, 'latin1'), MLLP_END]);
+            
+            // Small delay before sending DSR
+            setTimeout(async () => {
+                socket.write(dsrBuffer);
+                await db.query(
+                    'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
+                    [equipmentId, 'DSR^Q03', 'OUT', dsrResponse]
+                );
+            }, 500);
+        }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error handling BS-200 HL7 message:', error);
+    try {
+        const db = getDb();
+        const msh = parseHL7(message).find(s => s[0] === 'MSH');
+        if (msh) {
+            const messageControlId = msh[9] || '1';
+            const ack = generateBS200ACK(msh, 'AE', error.message || 'Internal Error', messageControlId);
+            const ackBuffer = Buffer.concat([MLLP_START, Buffer.from(ack, 'latin1'), MLLP_END]);
+            socket.write(ackBuffer);
+            await db.query(
+                'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
+                [equipmentId, 'ACK^R01', 'OUT', ack]
+            );
+        }
+    } catch (e) {
+        console.error('Failed to send error ACK:', e);
+    }
   }
 }

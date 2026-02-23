@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { format } from 'date-fns';
 import { Search, Filter, Download, Plus } from 'lucide-react';
@@ -15,57 +15,72 @@ interface QCResult {
   operator: string;
 }
 
-// Mock Data Generator
-const generateMockData = (test: string, level: string): QCResult[] => {
-  const data: QCResult[] = [];
-  const baseMean = test === 'WBC' ? (level === 'Level 1' ? 3.5 : level === 'Level 2' ? 7.5 : 15.0) : 
-                   test === 'RBC' ? (level === 'Level 1' ? 2.5 : level === 'Level 2' ? 4.5 : 6.0) : 120;
-  const sd = baseMean * 0.05;
-  
-  for (let i = 0; i < 20; i++) {
-    const date = new Date();
-    date.setDate(date.getDate() - (20 - i));
-    
-    // Random value within +/- 3SD
-    const noise = (Math.random() - 0.5) * 6 * sd; 
-    let value = baseMean + noise;
-    
-    // Force some outliers
-    if (i === 15) value = baseMean + 3.5 * sd; // Fail
-
-    let status: 'pass' | 'warning' | 'fail' = 'pass';
-    if (Math.abs(value - baseMean) > 3 * sd) status = 'fail';
-    else if (Math.abs(value - baseMean) > 2 * sd) status = 'warning';
-
-    data.push({
-      id: i,
-      run_time: date.toISOString(),
-      test_name: test,
-      level: level,
-      result_value: parseFloat(value.toFixed(2)),
-      mean: baseMean,
-      sd: parseFloat(sd.toFixed(2)),
-      status: status,
-      operator: 'Admin'
-    });
-  }
-  return data;
-};
-
 export default function QualityControl({ equipmentId }: { equipmentId?: number }) {
   const [selectedTest, setSelectedTest] = useState('WBC');
   const [selectedLevel, setSelectedLevel] = useState('Level 2');
   const [data, setData] = useState<QCResult[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useState(() => {
-    setData(generateMockData(selectedTest, selectedLevel));
-  });
+  const fetchQCData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/qc_results');
+      if (response.ok) {
+        const rawData = await response.json();
+        
+        // Filter and map the raw database data to our component's format
+        const filteredData = rawData
+          .filter((row: any) => 
+            row.test_name === selectedTest && 
+            row.qc_level === selectedLevel &&
+            (!equipmentId || row.equipment_id === equipmentId)
+          )
+          .map((row: any) => {
+            // Calculate mock mean/sd based on test type for visualization
+            // In a real app, these would come from the database or a target table
+            const baseMean = selectedTest === 'WBC' ? (selectedLevel === 'Level 1' ? 3.5 : selectedLevel === 'Level 2' ? 7.5 : 15.0) : 
+                             selectedTest === 'RBC' ? (selectedLevel === 'Level 1' ? 2.5 : selectedLevel === 'Level 2' ? 4.5 : 6.0) : 120;
+            const sd = baseMean * 0.05;
+            const value = parseFloat(row.result_value);
+            
+            let status: 'pass' | 'warning' | 'fail' = 'pass';
+            if (Math.abs(value - baseMean) > 3 * sd) status = 'fail';
+            else if (Math.abs(value - baseMean) > 2 * sd) status = 'warning';
+
+            return {
+              id: row.id,
+              run_time: row.result_time,
+              test_name: row.test_name,
+              level: row.qc_level,
+              result_value: value,
+              mean: baseMean,
+              sd: parseFloat(sd.toFixed(2)),
+              status: status,
+              operator: 'Admin'
+            };
+          })
+          .sort((a: any, b: any) => new Date(a.run_time).getTime() - new Date(b.run_time).getTime());
+          
+        setData(filteredData);
+      }
+    } catch (error) {
+      console.error('Failed to fetch QC data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchQCData();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchQCData, 30000);
+    return () => clearInterval(interval);
+  }, [selectedTest, selectedLevel, equipmentId]);
 
   // Update data when filters change
   const handleFilterChange = (test: string, level: string) => {
     setSelectedTest(test);
     setSelectedLevel(level);
-    setData(generateMockData(test, level));
   };
 
   const currentMean = data.length > 0 ? data[0].mean : 0;

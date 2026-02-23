@@ -64,10 +64,23 @@ async function handleResults(segments: string[][], db: any, equipmentId: number,
         
         const sampleBarcode = obr ? (obr[3] || '') : ''; 
         const sampleNumber = obr ? (obr[4] || '') : '';
+        const measurementMode = obr ? (obr[44] || '') : '';
         
         const identifier = sampleBarcode || sampleNumber || '';
         
-        console.log(`[MedconnAdapter] Processing results for Sample: ${identifier}, Patient: ${patientName}`);
+        const isQC = measurementMode.toUpperCase() === 'QC' || 
+                     patientName.toUpperCase().includes('QC') || 
+                     identifier.toUpperCase().startsWith('QC');
+                     
+        let qcLevel = 'Level 1';
+        let qcLot = identifier;
+        if (isQC) {
+            if (identifier.includes('L1') || identifier.includes('1')) qcLevel = 'Level 1';
+            else if (identifier.includes('L2') || identifier.includes('2')) qcLevel = 'Level 2';
+            else if (identifier.includes('L3') || identifier.includes('3')) qcLevel = 'Level 3';
+        }
+        
+        console.log(`[MedconnAdapter] Processing ${isQC ? 'QC ' : ''}results for Sample: ${identifier}, Patient: ${patientName}`);
 
         for (const obx of obxSegments) {
             try {
@@ -102,23 +115,44 @@ async function handleResults(segments: string[][], db: any, equipmentId: number,
                      resultTime = new Date(year, month, day, hour, min, sec);
                 }
 
-                const existing = await db.query(
-                    `SELECT id FROM results 
-                     WHERE equipment_id = $1 AND sample_barcode = $2 AND test_no = $3 AND result_value = $4`,
-                    [equipmentId, identifier, testNo, resultValue]
-                );
+                if (isQC) {
+                    const existingQC = await db.query(
+                        `SELECT id FROM qc_results 
+                         WHERE equipment_id = $1 AND qc_lot = $2 AND test_no = $3 AND result_value = $4`,
+                        [equipmentId, qcLot, testNo, resultValue]
+                    );
 
-                if (existing.rows.length === 0) {
-                    await db.query(
-                        `INSERT INTO results (equipment_id, sample_barcode, patient_name, test_no, test_name, result_value, result_unit, result_time)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-                        [equipmentId, identifier, patientName, testNo, testName, resultValue, resultUnit, resultTime]
-                    );
+                    if (existingQC.rows.length === 0) {
+                        await db.query(
+                            `INSERT INTO qc_results (equipment_id, qc_level, qc_lot, test_no, test_name, result_value, result_unit, result_time)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                            [equipmentId, qcLevel, qcLot, testNo, testName, resultValue, resultUnit, resultTime]
+                        );
+                    } else {
+                         await db.query(
+                            'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
+                            [equipmentId, 'DUPLICATE', 'INFO', `Duplicate QC result skipped: ${qcLot} - ${testNo}`]
+                        );
+                    }
                 } else {
-                     await db.query(
-                        'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
-                        [equipmentId, 'DUPLICATE', 'INFO', `Duplicate result skipped: ${identifier} - ${testNo}`]
+                    const existing = await db.query(
+                        `SELECT id FROM results 
+                         WHERE equipment_id = $1 AND sample_barcode = $2 AND test_no = $3 AND result_value = $4`,
+                        [equipmentId, identifier, testNo, resultValue]
                     );
+
+                    if (existing.rows.length === 0) {
+                        await db.query(
+                            `INSERT INTO results (equipment_id, sample_barcode, patient_name, test_no, test_name, result_value, result_unit, result_time)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                            [equipmentId, identifier, patientName, testNo, testName, resultValue, resultUnit, resultTime]
+                        );
+                    } else {
+                         await db.query(
+                            'INSERT INTO logs (equipment_id, message_type, direction, raw_message) VALUES ($1, $2, $3, $4)',
+                            [equipmentId, 'DUPLICATE', 'INFO', `Duplicate result skipped: ${identifier} - ${testNo}`]
+                        );
+                    }
                 }
             } catch (innerErr: any) {
                 console.error(`[MedconnAdapter] Error processing OBX segment:`, innerErr);

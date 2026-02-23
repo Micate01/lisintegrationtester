@@ -12,10 +12,12 @@ app.use(express.json());
 
 // API Routes
 app.get('/api/health', (req, res) => {
+  console.log('GET /api/health');
   res.json({ status: 'ok' });
 });
 
 app.get('/api/equipments', async (req, res) => {
+  console.log('GET /api/equipments');
   try {
     const db = getDb();
     const { rows } = await db.query('SELECT * FROM equipments ORDER BY id ASC');
@@ -27,6 +29,7 @@ app.get('/api/equipments', async (req, res) => {
 });
 
 app.post('/api/equipments', async (req, res) => {
+  console.log('POST /api/equipments');
   try {
     const { name, model, ip_address, port } = req.body;
     const db = getDb();
@@ -35,7 +38,10 @@ app.post('/api/equipments', async (req, res) => {
       [name, model, ip_address, port]
     );
     const newEquipment = rows[0];
+    
+    // Start adapter for the new equipment
     startAdapter(newEquipment.port, newEquipment.id, newEquipment.model);
+    
     res.json(newEquipment);
   } catch (error) {
     console.error('Error in POST /api/equipments:', error);
@@ -44,11 +50,17 @@ app.post('/api/equipments', async (req, res) => {
 });
 
 app.delete('/api/equipments/:id', async (req, res) => {
+  console.log('DELETE /api/equipments/:id');
   try {
     const { id } = req.params;
     const db = getDb();
+    
+    // Stop adapter first
     stopAdapter(parseInt(id));
+
+    // Delete from DB
     await db.query('DELETE FROM equipments WHERE id = $1', [id]);
+    
     res.json({ message: 'Equipment deleted successfully' });
   } catch (error) {
     console.error('Error in DELETE /api/equipments/:id:', error);
@@ -57,6 +69,7 @@ app.delete('/api/equipments/:id', async (req, res) => {
 });
 
 app.get('/api/results', async (req, res) => {
+  console.log('GET /api/results');
   try {
     const db = getDb();
     const { rows } = await db.query(`
@@ -73,6 +86,7 @@ app.get('/api/results', async (req, res) => {
 });
 
 app.delete('/api/results', async (req, res) => {
+  console.log('DELETE /api/results');
   try {
     const db = getDb();
     await db.query('DELETE FROM results');
@@ -84,6 +98,7 @@ app.delete('/api/results', async (req, res) => {
 });
 
 app.get('/api/worklist', async (req, res) => {
+  console.log('GET /api/worklist');
   try {
     const db = getDb();
     const { rows } = await db.query('SELECT * FROM worklist ORDER BY created_at DESC');
@@ -94,7 +109,25 @@ app.get('/api/worklist', async (req, res) => {
   }
 });
 
+app.get('/api/qc_results', async (req, res) => {
+  console.log('GET /api/qc_results');
+  try {
+    const db = getDb();
+    const { rows } = await db.query(`
+      SELECT q.*, e.name as equipment_name 
+      FROM qc_results q 
+      LEFT JOIN equipments e ON q.equipment_id = e.id 
+      ORDER BY q.result_time DESC
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error in GET /api/qc_results:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 app.post('/api/worklist', async (req, res) => {
+  console.log('POST /api/worklist', req.body);
   try {
     const db = getDb();
     const { sample_barcode, patient_id, patient_name, age, sex, test_names } = req.body;
@@ -111,6 +144,7 @@ app.post('/api/worklist', async (req, res) => {
 });
 
 app.delete('/api/worklist/:id', async (req, res) => {
+  console.log('DELETE /api/worklist/:id', req.params.id);
   try {
     const db = getDb();
     await db.query('DELETE FROM worklist WHERE id = $1', [req.params.id]);
@@ -122,6 +156,7 @@ app.delete('/api/worklist/:id', async (req, res) => {
 });
 
 app.get('/api/logs', async (req, res) => {
+  console.log('GET /api/logs');
   try {
     const db = getDb();
     const { rows } = await db.query(`
@@ -138,6 +173,7 @@ app.get('/api/logs', async (req, res) => {
 });
 
 app.delete('/api/logs', async (req, res) => {
+  console.log('DELETE /api/logs');
   try {
     const db = getDb();
     await db.query('DELETE FROM logs');
@@ -149,19 +185,21 @@ app.delete('/api/logs', async (req, res) => {
 });
 
 async function startServer() {
-  // Initialize Database in background
-  initDb().then(async () => {
-    try {
-      const db = getDb();
-      const { rows } = await db.query('SELECT * FROM equipments');
-      for (const equipment of rows) {
-        startAdapter(equipment.port, equipment.id, equipment.model);
-      }
-    } catch (error) {
-      console.error('Failed to start adapters:', error);
-    }
-  }).catch(err => console.error('DB Init failed:', err));
+  // Initialize Database
+  await initDb();
 
+  // Start existing adapters
+  try {
+    const db = getDb();
+    const { rows } = await db.query('SELECT * FROM equipments');
+    for (const equipment of rows) {
+      startAdapter(equipment.port, equipment.id, equipment.model);
+    }
+  } catch (error) {
+    console.error('Failed to start adapters. Database might not be configured.');
+  }
+
+  // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
