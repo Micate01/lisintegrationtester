@@ -10,6 +10,7 @@ export function cn(...inputs: ClassValue[]) {
 export default function Layout() {
   const navigation = [
     { name: 'Dashboard', href: '/', icon: Activity },
+    { name: 'Patients', href: '/patients', icon: Users },
     { name: 'Equipments', href: '/equipments', icon: Server },
     { name: 'Worklist', href: '/worklist', icon: ClipboardList },
     { name: 'Results', href: '/results', icon: FileText },
@@ -34,7 +35,7 @@ export default function Layout() {
               )
             }
           >
-            <item.icon className={cn("w-6 h-6 mb-1", item.name === 'Equipments' ? 'text-emerald-600' : item.name === 'Results' ? 'text-blue-600' : item.name === 'Validation' ? 'text-purple-600' : 'text-zinc-500')} />
+            <item.icon className={cn("w-6 h-6 mb-1", item.name === 'Equipments' ? 'text-emerald-600' : item.name === 'Results' ? 'text-blue-600' : item.name === 'Validation' ? 'text-purple-600' : item.name === 'Patients' ? 'text-indigo-600' : 'text-zinc-500')} />
             <span className="text-[10px] font-medium text-center leading-tight">{item.name}</span>
           </NavLink>
         ))}

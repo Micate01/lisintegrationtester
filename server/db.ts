@@ -128,6 +128,18 @@ export async function initDb() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS patients (
+        id SERIAL PRIMARY KEY,
+        patient_id VARCHAR(255) UNIQUE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        date_of_birth VARCHAR(50),
+        sex VARCHAR(10),
+        blood_type VARCHAR(10),
+        phone VARCHAR(50),
+        address TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS worklist (
         id SERIAL PRIMARY KEY,
         sample_barcode VARCHAR(255),

@@ -168,6 +168,89 @@ app.delete('/api/worklist/:id', async (req, res) => {
   }
 });
 
+// --- Patients API ---
+
+app.get('/api/patients', async (req, res) => {
+  console.log('GET /api/patients');
+  try {
+    const db = getDb();
+    const { rows } = await db.query('SELECT * FROM patients ORDER BY created_at DESC');
+    res.json(rows);
+  } catch (error) {
+    console.error('Error in GET /api/patients:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.post('/api/patients', async (req, res) => {
+  console.log('POST /api/patients', req.body);
+  try {
+    const db = getDb();
+    const { patient_id, name, date_of_birth, sex, blood_type, phone, address } = req.body;
+    const { rows } = await db.query(
+      `INSERT INTO patients (patient_id, name, date_of_birth, sex, blood_type, phone, address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [patient_id, name, date_of_birth, sex, blood_type, phone, address]
+    );
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error in POST /api/patients:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.put('/api/patients/:id', async (req, res) => {
+  console.log('PUT /api/patients/:id', req.params.id, req.body);
+  try {
+    const db = getDb();
+    const { patient_id, name, date_of_birth, sex, blood_type, phone, address } = req.body;
+    const { rows } = await db.query(
+      `UPDATE patients 
+       SET patient_id = $1, name = $2, date_of_birth = $3, sex = $4, blood_type = $5, phone = $6, address = $7
+       WHERE id = $8 RETURNING *`,
+      [patient_id, name, date_of_birth, sex, blood_type, phone, address, req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error in PUT /api/patients/:id:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.delete('/api/patients/:id', async (req, res) => {
+  console.log('DELETE /api/patients/:id', req.params.id);
+  try {
+    const db = getDb();
+    await db.query('DELETE FROM patients WHERE id = $1', [req.params.id]);
+    res.json({ message: 'Patient deleted successfully' });
+  } catch (error) {
+    console.error('Error in DELETE /api/patients/:id:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.get('/api/patients/:patient_id/history', async (req, res) => {
+  console.log('GET /api/patients/:patient_id/history', req.params.patient_id);
+  try {
+    const db = getDb();
+    // Fetch results for this patient. We match by patient_name or sample_barcode if we can link them.
+    // In our current schema, `results` table has `patient_name` and `sample_barcode`.
+    // We can join `results` with `worklist` to get `patient_id`.
+    const { rows } = await db.query(`
+      SELECT r.*, e.name as equipment_name, w.patient_id
+      FROM results r
+      LEFT JOIN equipments e ON r.equipment_id = e.id
+      LEFT JOIN worklist w ON r.sample_barcode = w.sample_barcode
+      WHERE w.patient_id = $1 OR r.patient_name = (SELECT name FROM patients WHERE patient_id = $1 LIMIT 1)
+      ORDER BY r.result_time DESC
+    `, [req.params.patient_id]);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error in GET /api/patients/:patient_id/history:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 app.get('/api/logs', async (req, res) => {
   console.log('GET /api/logs');
   try {

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
+import Patients from './pages/Patients';
 import Equipments from './pages/Equipments';
 import EquipmentDetails from './pages/EquipmentDetails';
 import Results from './pages/Results';
@@ -14,6 +15,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
+          <Route path="patients" element={<Patients />} />
           <Route path="equipments" element={<Equipments />} />
           <Route path="equipments/:id" element={<EquipmentDetails />} />
           <Route path="results" element={<Results />} />
