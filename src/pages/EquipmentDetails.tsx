@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Server, CheckCircle, XCircle } from 'lucide-react';
 import Worklist from './Worklist';
 import Results from './Results';
+import QualityControl from './QualityControl';
 
 interface Equipment {
   id: number;
@@ -119,11 +120,7 @@ export default function EquipmentDetails() {
       <div className="flex-1 flex flex-col min-h-0 bg-white border border-zinc-300 -mt-4 relative z-0">
         {activeTab === 'results' && <Results equipmentId={equipment.id} />}
         {activeTab === 'worklist' && <Worklist equipmentId={equipment.id} />}
-        {activeTab === 'qc' && (
-          <div className="flex-1 flex items-center justify-center text-xs text-zinc-500">
-            QC functionality coming soon
-          </div>
-        )}
+        {activeTab === 'qc' && <QualityControl equipmentId={equipment.id} />}
       </div>
     </div>
   );
