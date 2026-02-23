@@ -100,7 +100,9 @@ export async function handleBS200Message(message: string, socket: net.Socket, eq
       );
     } else if (messageType === 'QRY' && triggerEvent === 'Q02') {
         const qrd = segments.find(s => s[0] === 'QRD');
+        const qrf = segments.find(s => s[0] === 'QRF');
         const sampleId = qrd ? (qrd[8] || '') : '';
+        const inboundModel = qrf ? (qrf[1] || 'BS-200') : 'BS-200';
         
         console.log(`[MindrayAdapter] Query for Sample ID: ${sampleId}`);
 
@@ -134,28 +136,59 @@ export async function handleBS200Message(message: string, socket: net.Socket, eq
             const dsrMsa = `MSA|AA|${messageControlId}|Message accepted|||0|`;
             const dsrErr = `ERR|0|`;
             const dsrQak = `QAK|SR|OK|`;
-            const dsrQrd = `QRD|${date}|R|I|${messageControlId}|||1^RD|${sampleId}|OTH|||T|`;
-            const dsrQrf = `QRF|BS-200||||0|`;
+            const dsrQrd = `QRD|${date}|R|D|${messageControlId}|||1^RD|${sampleId}|OTH|||T|`;
+            const dsrQrf = `QRF|${inboundModel}||||0|`;
             
             const pid = order.patient_id || '';
             const name = order.patient_name || '';
             const sex = order.sex || 'M';
             const age = order.age || '';
+            const birthDate = ''; // Optional
+            const sampleTime = date; // Fallback to current time
             
-            const dsp1 = `DSP|1||${sampleId}|||`;
-            const dsp2 = `DSP|2|||||`;
-            const dsp3 = `DSP|3||${pid}^${name}^${sex}^${age}^^^^^^^|||`;
+            const dsp1 = `DSP|1||${pid}|||`; // Patient ID/Admission No
+            const dsp2 = `DSP|2|||||`; // Bed No
+            const dsp3 = `DSP|3||${name}|||`; // Patient Name
+            const dsp4 = `DSP|4||${birthDate}|||`; // Birth Date
+            const dsp5 = `DSP|5||${sex}|||`; // Sex
+            const dsp6 = `DSP|6|||||`; // Blood Type
+            const dsp7 = `DSP|7|||||`; // Patient Type
+            const dsp8 = `DSP|8|||||`; // Address
+            const dsp9 = `DSP|9|||||`; // Zip Code
+            const dsp10 = `DSP|10|||||`; // Phone
+            const dsp11 = `DSP|11|||||`; // Diagnostic Info
+            const dsp12 = `DSP|12|||||`; // Charge Type
+            const dsp13 = `DSP|13|||||`; // Charge Amount
+            const dsp14 = `DSP|14|||||`; // Charge Status
+            const dsp15 = `DSP|15|||||`; // In-patient No
+            const dsp16 = `DSP|16|||||`; // Out-patient No
+            const dsp17 = `DSP|17|||||`; // Ward
+            const dsp18 = `DSP|18|||||`; // Department
+            const dsp19 = `DSP|19|||||`; // Doctor
+            const dsp20 = `DSP|20|||||`; // Sender
+            const dsp21 = `DSP|21||${sampleId}|||`; // Bar Code
+            const dsp22 = `DSP|22|||||`; // Sample ID (Analyzer specific)
+            const dsp23 = `DSP|23||${sampleTime}|||`; // Sample Time
+            const dsp24 = `DSP|24||N|||`; // STAT
+            const dsp25 = `DSP|25|||||`; // Sample Status
+            const dsp26 = `DSP|26|||||`; // Sample Type
+            const dsp27 = `DSP|27|||||`; // Fetch Doctor
+            const dsp28 = `DSP|28|||||`; // Fetch Department
+            
+            const dspBase = [dsp1, dsp2, dsp3, dsp4, dsp5, dsp6, dsp7, dsp8, dsp9, dsp10, dsp11, dsp12, dsp13, dsp14, dsp15, dsp16, dsp17, dsp18, dsp19, dsp20, dsp21, dsp22, dsp23, dsp24, dsp25, dsp26, dsp27, dsp28].join('\r') + '\r';
             
             // Assuming test_names is a comma-separated list of tests
             const tests = (order.test_names || '').split(',').map(t => t.trim()).filter(t => t);
             let dspTests = '';
             for (let i = 0; i < tests.length; i++) {
-                // Format: DSP|sequence||test_no^^^test_name^^^|||
-                // Using index + 4 for sequence number
-                dspTests += `DSP|${i + 4}||${i + 1}^^^${tests[i]}^^^|||\r`;
+                // Format: DSP|sequence||Test Number^Test Name^Unit^Normal Range|||
+                // Using index + 29 for sequence number
+                dspTests += `DSP|${i + 29}||${i + 1}^${tests[i]}^^^|||\r`;
             }
             
-            const dsrResponse = `${dsrMsh}\r${dsrMsa}\r${dsrErr}\r${dsrQak}\r${dsrQrd}\r${dsrQrf}\r${dsp1}\r${dsp2}\r${dsp3}\r${dspTests}`;
+            const dsc = `DSC||\r`;
+            
+            const dsrResponse = `${dsrMsh}\r${dsrMsa}\r${dsrErr}\r${dsrQak}\r${dsrQrd}\r${dsrQrf}\r${dspBase}${dspTests}${dsc}`;
             const dsrBuffer = Buffer.concat([MLLP_START, Buffer.from(dsrResponse, 'latin1'), MLLP_END]);
             
             // Small delay before sending DSR
@@ -167,6 +200,8 @@ export async function handleBS200Message(message: string, socket: net.Socket, eq
                 );
             }, 500);
         }
+    } else if (messageType === 'ACK' && triggerEvent === 'Q03') {
+        console.log(`[MindrayAdapter] Received ACK^Q03 for DSR message. Control ID: ${messageControlId}`);
     }
   } catch (error: any) {
     console.error('Error handling BS-200 HL7 message:', error);
